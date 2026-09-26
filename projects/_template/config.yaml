@@ -1,0 +1,11 @@
+# Project configuration — keep every tunable value here, not in code.
+seed: 42
+
+data:
+  raw_file: raw/dataset.csv
+  target: target
+  test_size: 0.2
+
+model:
+  name: baseline
+  params: {}

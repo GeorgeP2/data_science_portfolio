@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "portfolio"
+version = "0.1.0"
+description = "Shared utilities for George Priestley's data science / ML / AI portfolio"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "George Priestley" }]
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "scikit-learn>=1.5",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+    "pyyaml>=6.0",
+    "joblib>=1.4",
+    "tabulate>=0.9",
+    "pyarrow>=16.0",
+]
+
+[project.optional-dependencies]
+notebooks = ["jupyterlab>=4.2", "ipykernel>=6.29", "ipywidgets>=8.1"]
+ml = ["xgboost>=2.1", "lightgbm>=4.5", "optuna>=4.0", "shap>=0.46"]
+dl = ["torch>=2.4", "torchvision>=0.19"]
+nlp = ["transformers>=4.44", "datasets>=3.0", "sentence-transformers>=3.1"]
+llm = ["anthropic>=0.40"]
+tracking = ["mlflow>=2.16"]
+app = ["streamlit>=1.38", "fastapi>=0.114", "uvicorn>=0.30"]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pre-commit>=3.8",
+    "nbstripout>=0.7",
+    "pandas-stubs",
+    "types-PyYAML",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/portfolio"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["projects/_template"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "NPY", "PD", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/notebooks/*.ipynb" = ["E402", "F401"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "projects"]
+addopts = "-ra --import-mode=importlib"
+norecursedirs = ["projects/_template", ".*", "data", "outputs"]
+
+[tool.mypy]
+ignore_missing_imports = true
+files = ["src"]
+
+[tool.coverage.run]
+source = ["portfolio"]
