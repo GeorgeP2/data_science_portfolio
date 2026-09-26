@@ -1,0 +1,89 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>George Priestley CV</title>
+<style>
+  @page { size: A4; margin: 16mm 18mm; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; line-height: 1.32; color: #000; margin: 0; }
+  h1 { font-size: 17pt; margin: 0; }
+  .subtitle { font-size: 11.5pt; font-weight: bold; margin: 2px 0 4px; }
+  .contact { font-size: 9.5pt; margin: 0 0 12px; color: #222; }
+  .contact a { color: #222; text-decoration: none; }
+  h2 { font-size: 12.5pt; margin: 14px 0 5px; padding-bottom: 2px; border-bottom: 1px solid #999; }
+  p { margin: 0 0 6px; }
+  .skills { display: grid; grid-template-columns: 150px 1fr; gap: 3px 10px; }
+  .skills .k { font-weight: bold; }
+  .role { display: flex; justify-content: space-between; font-weight: bold; margin: 10px 0 1px; }
+  .role .dates { font-weight: normal; font-style: italic; }
+  .scope { font-style: italic; margin: 0 0 3px; color: #222; }
+  .project { font-weight: bold; margin: 6px 0 1px; font-size: 10pt; }
+  ul { margin: 2px 0 4px; padding-left: 18px; }
+  li { margin: 0 0 3px; }
+  .avoid { break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<h1>George Priestley</h1>
+<div class="subtitle">Senior Data Scientist | Production ML, Optimisation &amp; Decision Systems</div>
+<div class="contact">Runcorn, Cheshire (UK) &nbsp;·&nbsp; georgepriestley23@gmail.com &nbsp;·&nbsp; Full UK right to work<br>linkedin.com/in/george-priestley-93704530</div>
+
+<p>Data scientist with 10 years building machine learning and optimisation systems that make live decisions in production at THG. Designed and shipped a batching optimisation engine that improved key fulfilment KPIs by ~50%, avoided £2m in capital expenditure, and is now standardised across 4 automated sites globally. Strongest where a loosely defined business problem needs to be formulated mathematically, validated rigorously, and owned all the way into production.</p>
+
+<h2>Skills</h2>
+<div class="skills">
+  <div class="k">Machine learning</div><div>Neural networks, supervised learning, forecasting, statistical modelling, model evaluation and validation, simulation-based testing</div>
+  <div class="k">Optimisation</div><div>Combinatorial optimisation, graph search (DFS), genetic algorithms, heuristic and multi-objective search, problem formulation</div>
+  <div class="k">Production ML</div><div>End-to-end deployment across on-prem, GCP, AWS and WMS-embedded services; real-time decision APIs; live performance monitoring; graceful degradation</div>
+  <div class="k">Languages &amp; ML</div><div>Python, SQL · PyTorch, TensorFlow, scikit-learn, XGBoost, LightGBM, statsmodels, SciPy, OR-Tools, Pandas, Polars, PySpark</div>
+  <div class="k">Cloud &amp; data</div><div>GCP (Vertex AI, Cloud Run, Cloud Functions, GKE, BigQuery), AWS (ECS, Lambda, S3, Redshift), SQL Server, Postgres</div>
+  <div class="k">Engineering</div><div>Docker, Kubernetes (GKE), GitHub Actions CI/CD, FastAPI, Flask, pytest, Git</div>
+  <div class="k">Leadership</div><div>Technical ownership of flagship systems, cross-functional delivery with engineering and operations, mentoring data scientists</div>
+</div>
+
+<h2>Experience</h2>
+
+<div class="role"><span>Senior Data Scientist, THG</span><span class="dates">Jun 2020 – Present</span></div>
+<div class="scope">Lead data scientist for warehouse automation optimisation; technical owner of the batching engine from concept to global rollout.</div>
+
+<div class="project">Warehouse Batching Optimisation Engine (flagship)</div>
+<ul>
+  <li>Delivered ~50% improvement in key operational KPIs and avoided £2m in capital expenditure by increasing units picked per robot movement, raising fulfilment capacity without additional hardware.</li>
+  <li>Standardised across 4 automated fulfilment sites globally; runs live at batch-creation time and handles millions of units through peak trading.</li>
+  <li>Reframed a critical automation bottleneck as a combinatorial graph search problem and designed a bespoke DFS-based search with a domain-specific objective balancing throughput against order cycle time.</li>
+  <li>Validated ~15 algorithmic variants in simulation before selecting the production approach; partnered with WMS engineers to productionise it and won operational buy-in on measured results.</li>
+  <li>Built monitoring comparing live performance against simulation benchmarks, with graceful degradation so the engine never blocks fulfilment.</li>
+</ul>
+
+<div class="project">Other production systems</div>
+<ul>
+  <li>Shipped a packaging-suggestion service to production through a secure API integration with fulfilment systems.</li>
+  <li>Developed genetic-algorithm optimisers for stock movement and fulfilment planning across high-volume operations.</li>
+  <li>Built dashboards and analytical tools that turned model outputs into operational decisions for senior stakeholders.</li>
+  <li>Provided technical leadership across projects and mentored junior data scientists.</li>
+</ul>
+
+<div class="avoid">
+<div class="role"><span>Data Scientist, THG</span><span class="dates">Oct 2016 – Jun 2020</span></div>
+<ul>
+  <li>Built neural network models to predict pick paths in fulfilment operations.</li>
+  <li>Developed genetic-algorithm optimisation for warehouse layout and scheduling; delivered routing and planning solutions that consistently outperformed manual decision-making.</li>
+  <li>Influenced adoption of data-driven decision-making across the logistics division by demonstrating measurable business impact, including deep-dive analysis supporting critical decisions during peak trading.</li>
+</ul>
+</div>
+
+<div class="avoid">
+<div class="role"><span>Operations Intelligence Analyst, THG</span><span class="dates">Mar 2015 – Oct 2016</span></div>
+<ul>
+  <li>Introduced statistical analysis, KPI tracking and labour-planning tools into warehouse decision-making, and helped build and mentor the warehouse data team.</li>
+</ul>
+</div>
+
+<div class="avoid">
+<h2>Education</h2>
+<div class="role"><span>MMath Mathematics (2:1), University of Reading</span><span class="dates">2010 – 2014</span></div>
+</div>
+
+</body>
+</html>
