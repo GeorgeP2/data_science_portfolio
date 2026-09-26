@@ -239,4 +239,5 @@ lightning_logs/
 .idea/
 .vscode/
 /docs/Principal ML Engineer Roadmap.md
+/docs/projects/*/tasks/
 *.pdf

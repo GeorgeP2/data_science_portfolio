@@ -5,7 +5,6 @@ One folder per planned project:
 ```
 pN-project-name/
 ├── brief.md    # question, data, scope, definition of done: written before any code
-├── tasks/      # task breakdowns and working notes
 └── results/    # findings, charts and write-ups as the project progresses
 ```
 

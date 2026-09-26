@@ -7,8 +7,9 @@ shared utilities in `src/portfolio/`.
 
 - `docs/Principal ML Engineer Roadmap.md` (git-ignored, private) drives what gets built. Don't create
   or flesh out projects that aren't on the roadmap; ask first.
-- Per-project planning lives in `docs/projects/pN-name/` (`brief.md`, `tasks/`, `results/`); code lives
-  in `projects/NN-name/`. Committed docs must not mention the job search (target companies,
+- Per-project planning lives in `docs/projects/pN-name/` (`brief.md`, `results/`); code lives in
+  `projects/NN-name/`. Task breakdowns go in `docs/projects/pN-name/tasks/`, which is git-ignored
+  (private working notes). Committed docs must not mention the job search (target companies,
   applications, market analysis).
 - Keep changes to what was asked. Scaffolding and examples beyond the request aren't wanted.
 
