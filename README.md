@@ -12,6 +12,7 @@ Every project is reproducible, tested and follows the same structure.
 
 | Project | Area | Status | Highlights |
 |---------|------|--------|------------|
+| [Fulfilment Optimisation](projects/01-fulfilment-optimisation) | MLOps & Deployment | 🚧 | _TBC_ |
 <!-- projects:end -->
 
 ## Skills
@@ -57,7 +58,7 @@ source .venv/bin/activate
 make check            # lint, type-check and test everything
 ```
 
-Heavier dependencies are grouped as optional extras (`ml`, `dl`, `nlp`, `llm`, `tracking`, `app`),
+Heavier dependencies are grouped as optional extras (`ml`, `dl`, `nlp`, `llm`, `tracking`, `app`, `opt`),
 e.g. `pip install -e ".[dl,nlp]"`, or `make setup-all` for everything.
 
 ### Adding a project

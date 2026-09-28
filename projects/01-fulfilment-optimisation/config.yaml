@@ -1,0 +1,11 @@
+# Project configuration — keep every tunable value here, not in code.
+seed: 42
+
+# Paths are relative to the project's data/ directory.
+data:
+  kit: raw/kit
+  henn_waescher: raw/henn_waescher
+  foodmart: raw/foodmart
+  processed: processed
+
+solvers: {}
