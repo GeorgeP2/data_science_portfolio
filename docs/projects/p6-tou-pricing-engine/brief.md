@@ -1,10 +1,10 @@
-# Project 5: Time-of-Use Pricing Engine
+# Project 6: Time-of-Use Pricing Engine
 
 **One line:** a dynamic-pricing engine for a UK energy supplier. It sets half-hourly tariff prices
 to shift household demand away from expensive peaks, under business constraints. It learns demand
 response with Thompson-sampling bandits and evaluates policies off-policy before "launch".
 
-**Time box:** weeks 24–26+ (~30 h). Pick this **or** Project 6.
+**Time box:** weeks 24–26+ (~30 h). Pick this **or** Project 7.
 
 ## Headline questions
 

@@ -1,4 +1,4 @@
-# Project 2: Experimentation & Uplift Case Study
+# Project 3: Experimentation & Uplift Case Study
 
 **One line:** a rigorous re-analysis of a real 344k-person randomised field experiment. It covers
 CUPED, cluster-robust inference, heterogeneous effects and uplift targeting, plus sequential testing
@@ -50,7 +50,19 @@ Criteo Uplift is in every uplift tutorial. Instead:
 
 **Deliverable:** a two-page **decision memo**, "who should we treat, and what's it worth?", with cost per mailing as a parameter. It should read like something a product lead could act on.
 
-**Stretch:** Bayesian A/B analysis (PyMC) of the same arms; difference-in-differences or synthetic control on a public UK policy change.
+**Stretch**
+- Bayesian A/B analysis (PyMC) of the same arms.
+- Difference-in-differences or synthetic control on a public UK policy change.
+- **Observational counterpart: late deliveries.** What happens when there's no randomisation? On
+  the [Olist e-commerce data](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) (~100k
+  orders; licence *unverified*), estimate the causal effect of missing a delivery promise on review
+  score (primary) and 180-day repeat purchase (secondary):
+  - an explicit causal graph (seller location, distance, product category, freight value, season);
+  - double ML and doubly robust estimates compared with naive regression, plus a dose-response
+    curve for days late;
+  - sensitivity analysis: how strong an unmeasured confounder (e.g. seller quality) would need to
+    be to overturn the result, with seller fixed effects;
+  - a costed decision: what a one-day earlier promise or buffer is worth in retained customers.
 
 **Out of scope:** building an experimentation platform.
 
