@@ -1,9 +1,9 @@
 """Fetch the external benchmark instances into ``data/raw/`` with pinned checksums.
 
-Neither source states a licence, so the files are downloaded rather than committed.
-Run from the project folder::
+Henn & Wäscher and Foodmart state no licence, so they are downloaded rather than committed. KIT
+is CC BY 4.0 but ~2 GB, so it is downloaded too. Run from the project folder::
 
-    PYTHONPATH=src python -m fulfilment_optimisation.download [henn_waescher|foodmart|all]
+    PYTHONPATH=src python -m fulfilment_optimisation.download [kit|henn_waescher|foodmart|all]
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import ssl
 import tarfile
+import urllib.error
 import urllib.request
 import zipfile
 from dataclasses import dataclass
@@ -24,6 +25,7 @@ log = get_logger(__name__)
 _CHUNK = 1 << 20
 _HW = "https://grafo.etsii.urjc.es/optsicom/obsp/obsp-files"
 _FOODMART = "https://homepages.dcc.ufmg.br/~arbex/orderpicking"
+_KIT = "https://radar.kit.edu/radar-backend/archives/mwsv59v8sk9sqaan/versions/1/content"
 
 
 @dataclass(frozen=True)
@@ -33,11 +35,23 @@ class Source:
     filename: str
     extract: bool = False
     extract_subdir: str = ""
+    # For an archive that wraps another tar: extract only this member's contents.
+    extract_member: str = ""
 
 
 # Three Foodmart links on the source page 404; the same files are served with a
 # ``.txt`` suffix. They are saved under the documented (suffix-free) names.
+# The KIT archive is a BagIt bag; the instances are in a tar nested inside it.
 DATASETS: dict[str, list[Source]] = {
+    "kit": [
+        Source(
+            _KIT,
+            "5d866dae22333c1e0b0dc3277e68dfe5ee8ab7d0267dd9fe3aa60713d9c8b93f",
+            "10.35097-mwsv59v8sk9sqaan.tar",
+            extract=True,
+            extract_member="10.35097-mwsv59v8sk9sqaan/data/dataset/Instances.tar",
+        ),
+    ],
     "henn_waescher": [
         Source(
             f"{_HW}/obsp_instances.zip",
@@ -131,7 +145,11 @@ def sha256(path: Path) -> str:
 
 
 def fetch(source: Source, dest_dir: Path) -> Path:
-    """Download ``source`` into ``dest_dir``; a no-op if a verified copy already exists."""
+    """Download ``source`` into ``dest_dir``; a no-op if a verified copy already exists.
+
+    An interrupted download leaves a ``.part`` file that the next run resumes with a range
+    request. If the server ignores the range, the download starts again from zero.
+    """
     target = dest_dir / source.filename
     if target.exists():
         if sha256(target) == source.sha256:
@@ -141,33 +159,50 @@ def fetch(source: Source, dest_dir: Path) -> Path:
 
     target.parent.mkdir(parents=True, exist_ok=True)
     part = target.with_name(target.name + ".part")
-    digest = hashlib.sha256()
+    offset = part.stat().st_size if part.exists() else 0
+    request = urllib.request.Request(source.url)
+    if offset:
+        request.add_header("Range", f"bytes={offset}-")
+        log.info("resuming %s at %d bytes", source.filename, offset)
     try:
-        with (
-            urllib.request.urlopen(source.url, context=_ssl_context()) as response,
-            part.open("wb") as f,
-        ):
-            while chunk := response.read(_CHUNK):
-                digest.update(chunk)
-                f.write(chunk)
-        if digest.hexdigest() != source.sha256:
-            raise ChecksumError(
-                f"{source.url}: expected sha256 {source.sha256}, got {digest.hexdigest()}"
-            )
-        part.replace(target)
-    finally:
-        part.unlink(missing_ok=True)
+        with urllib.request.urlopen(request, context=_ssl_context()) as response:
+            if response.status != 206:
+                offset = 0
+            with part.open("ab" if offset else "wb") as f:
+                while chunk := response.read(_CHUNK):
+                    f.write(chunk)
+    except urllib.error.HTTPError as e:
+        # 416: the .part already holds the whole file (interrupted before the rename).
+        if e.code != 416 or not offset:
+            raise
+
+    actual = sha256(part)
+    if actual != source.sha256:
+        part.unlink()
+        raise ChecksumError(f"{source.url}: expected sha256 {source.sha256}, got {actual}")
+    part.replace(target)
     log.info("fetched %s", source.filename)
     return target
 
 
-def extract(archive: Path, dest_dir: Path) -> None:
-    """Unpack a zip or tar archive into ``dest_dir`` once, refusing paths that escape it."""
+def extract(archive: Path, dest_dir: Path, member: str = "") -> None:
+    """Unpack a zip or tar archive into ``dest_dir`` once, refusing paths that escape it.
+
+    With ``member``, ``archive`` is a tar and only that member (itself a tar) is unpacked,
+    streamed without writing the inner tar to disk.
+    """
     marker = dest_dir / f".{archive.name}.extracted"
     if marker.exists():
         log.info("skip extracting %s", archive.name)
         return
-    if zipfile.is_zipfile(archive):
+    if member:
+        with tarfile.open(archive) as outer:
+            inner = outer.extractfile(member)
+            if inner is None:
+                raise ValueError(f"{archive.name}: {member!r} is not a file")
+            with tarfile.open(fileobj=inner, mode="r|") as tf:
+                tf.extractall(dest_dir, filter="data")
+    elif zipfile.is_zipfile(archive):
         with zipfile.ZipFile(archive) as zf:
             root = dest_dir.resolve()
             for name in zf.namelist():
@@ -185,7 +220,7 @@ def download(sources: list[Source], dest_dir: Path) -> None:
     for source in sources:
         path = fetch(source, dest_dir)
         if source.extract:
-            extract(path, dest_dir / source.extract_subdir)
+            extract(path, dest_dir / source.extract_subdir, source.extract_member)
 
 
 def main() -> None:
