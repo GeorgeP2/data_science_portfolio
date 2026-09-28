@@ -15,8 +15,8 @@ setup: ## Create venv and install core + dev + notebook deps
 	$(BIN)/pre-commit install
 	$(BIN)/python -m ipykernel install --user --name portfolio --display-name "Python (portfolio)"
 
-setup-all: setup ## Also install ML, DL, NLP, LLM, tracking and app extras
-	$(BIN)/pip install -e ".[ml,dl,nlp,llm,tracking,app]"
+setup-all: setup ## Also install ML, DL, NLP, LLM, tracking, app and opt extras
+	$(BIN)/pip install -e ".[ml,dl,nlp,llm,tracking,app,opt]"
 
 lint: ## Lint with ruff
 	$(BIN)/ruff check .

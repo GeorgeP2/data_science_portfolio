@@ -22,7 +22,7 @@ make format         # ruff fix + format
 make new-project name="Title" category=ml   # scaffold from projects/_template
 ```
 
-Use `.venv/bin/...` for tools. Optional dependency extras: `ml`, `dl`, `nlp`, `llm`, `tracking`, `app`.
+Use `.venv/bin/...` for tools. Optional dependency extras: `ml`, `dl`, `nlp`, `llm`, `tracking`, `app`, `opt`.
 
 ## Non-obvious details
 
