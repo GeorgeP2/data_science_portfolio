@@ -3,16 +3,19 @@
 Nothing under `raw/` is committed. Fetch it from the project folder with:
 
 ```bash
-PYTHONPATH=src python -m fulfilment_optimisation.download            # everything
+PYTHONPATH=src python -m fulfilment_optimisation.download            # everything (~4 GB on disk)
 PYTHONPATH=src python -m fulfilment_optimisation.download henn_waescher
+PYTHONPATH=src python -m fulfilment_optimisation.download kit
 ```
 
 Every file is checked against a SHA-256 pinned in `src/fulfilment_optimisation/download.py`.
 Re-running skips files that are already present and verified. A corrupted file stops the run with
-an error; delete it to fetch it again.
+an error; delete it to fetch it again. An interrupted download leaves a `.part` file, and the next
+run resumes it.
 
-Neither source below states a licence. The files are fetched from the authors' pages rather than
-redistributed; don't commit or re-host anything in `raw/`.
+Henn & Wäscher and Foodmart state no licence. Their files are fetched from the authors' pages
+rather than redistributed; don't commit or re-host anything in `raw/`. KIT is CC BY 4.0 but too large
+to commit.
 
 ## Henn & Wäscher instances → `raw/henn_waescher/`
 
@@ -55,4 +58,24 @@ redistributed; don't commit or re-host anything in `raw/`.
 
 ## KIT benchmark suite → `raw/kit/`
 
-Not scripted yet.
+- **Source:** [KIT RADAR, Benchmark Instances for Manual Warehouse Order Picking](https://radar.kit.edu/radar/en/dataset/mwsv59v8sk9sqaan)
+  (DOI [10.35097/mwsv59v8sk9sqaan](https://doi.org/10.35097/mwsv59v8sk9sqaan), version 1, published
+  2026-04-29).
+- **Size:** one 2.0 GB BagIt tar. The script keeps it (so re-runs can verify it) and unpacks only
+  the nested `Instances.tar` into `raw/kit/Instances/` (1.9 GB, 13,438 files). Allow ~4 GB.
+- **Contents** (`Instances/Readme.txt` documents the format):
+  - `Data_input/{OFAT,LHS}/`: 104 layouts as pickled NetworkX graphs (`Layout/*.pkl`) and storage
+    assignments as JSON (`Storage_assignment/`). Rectangular, parallel aisles, cross aisles top and
+    bottom, depot at (0, 0), distances in abstract length units.
+  - `Orders/OFAT/`: a `Standard_case/` plus seven folders that each vary one factor (article
+    distribution, due date, layout, number of orders, articles per order, stochasticity, storage
+    policy); 3,207 JSON instances, each one shift.
+  - `Orders/LHS/`: 100 Latin hypercube parameter sets × 100 replications (10,000 JSON instances).
+  - `Results/`: example solutions (routing and waiting heuristics) for selected instances.
+  - Loading a layout means `pickle.load`, which runs code from the file. Only load the pinned,
+    checksum-verified copy.
+- **Citation:** Barlang, M., Lehmann, T., Furmans, K. (2026). *Benchmark Instances for Manual
+  Warehouse Order Picking.* Karlsruhe Institute of Technology, RADAR.
+  https://doi.org/10.35097/mwsv59v8sk9sqaan
+- **Licence:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Anything derived from it
+  (the generator calibration) must credit the citation above.
