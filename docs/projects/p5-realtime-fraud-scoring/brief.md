@@ -1,4 +1,4 @@
-# Project 7: Real-Time Card Fraud Scoring
+# Project 5: Real-Time Card Fraud Scoring
 
 **One line:** a streaming fraud scorer. It replays 24M card transactions through Redpanda, keeps
 per-card state for velocity features, scores each transaction within a latency SLO and picks

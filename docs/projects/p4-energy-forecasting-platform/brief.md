@@ -4,7 +4,7 @@
 retrains daily on fresh NESO data. A hierarchical Bayesian household model on London smart meters
 uses partial pooling across household groups. Both are tracked, monitored and served.
 
-**Time box:** weeks 19–23 (~35 h). Reuses data with Project 5.
+**Time box:** weeks 19–23 (~35 h). Reuses data with Project 6.
 
 ## Headline questions
 

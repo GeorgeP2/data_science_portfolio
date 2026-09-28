@@ -5,7 +5,7 @@ making any attempt weight from millions of competition results, then optimises a
 attempt plan (openers, jumps and when to play safe) to maximise expected total, the chance of
 hitting a target total, or expected placing.
 
-**Time box:** weeks 24–26+ (~30 h). Sits alongside Projects 5 and 6.
+**Time box:** weeks 24–26+ (~30 h). Sits alongside Projects 6 and 7.
 
 ## Headline questions
 
@@ -55,7 +55,7 @@ far more shareable than another churn model.
 - **Demo:** a Streamlit or Hugging Face Space where the user enters recent bests, bodyweight, equipment and a goal, and gets a recommended attempt plan with make probabilities for each attempt. It uses only what the user types in, with no lookup of named lifters.
 
 **Stretch**
-- **Natural experiment:** a difference-in-differences or regression discontinuity analysis around a federation rule change, e.g. a weight-class restructure. The specific change needs verifying first. This links to Project 2.
+- **Natural experiment:** a difference-in-differences or regression discontinuity analysis around a federation rule change, e.g. a weight-class restructure. The specific change needs verifying first. This links to Project 3.
 - **Live updating:** after each attempt, update the plan with the outcome by Bayesian updating.
 
 **Out of scope:** training recommendations, and anything that analyses individual athletes' drug-testing outcomes.
@@ -63,7 +63,7 @@ far more shareable than another churn model.
 ## Design decisions to write up
 
 - **Latent strength vs direct classifier:** why a generative "meet-day max" model gives more sensible behaviour when extrapolating (e.g. big jumps) than a black-box classifier.
-- **Evaluating a policy that was never deployed:** only the outcomes of the attempts lifters actually chose are observed. Explain what can and can't be claimed, which links to off-policy evaluation in Project 5.
+- **Evaluating a policy that was never deployed:** only the outcomes of the attempts lifters actually chose are observed. Explain what can and can't be claimed, which links to off-policy evaluation in Project 6.
 - **Choice of objective:** expected total, hitting a target total and expected placing lead to different risk behaviour.
 - **Pooling structure:** which groupings matter, and evidence for them.
 

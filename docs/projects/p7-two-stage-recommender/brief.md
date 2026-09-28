@@ -1,10 +1,10 @@
-# Project 6 (optional): Two-Stage Music Recommender
+# Project 7 (optional): Two-Stage Music Recommender
 
 **One line:** a production-shaped recommender on a 2025 industrial music dataset. It has
 two-tower retrieval that uses audio embeddings for cold-start, a LightGBM ranker and a serving API
 with caching. It also looks at how much of listening the existing recommender *caused*.
 
-**Time box:** weeks 24–26+ (~30 h). Pick this **or** Project 5.
+**Time box:** weeks 24–26+ (~30 h). Pick this **or** Project 6.
 
 ## Headline questions
 

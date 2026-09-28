@@ -1,4 +1,4 @@
-# Project 3: Rail Delay Copilot (RAG + SQL agent with evals)
+# Project 2: Rail Delay Copilot (RAG + SQL agent with evals)
 
 **One line:** an agent that answers questions about GB rail delays. It chooses between text-to-SQL
 over Network Rail's delay attribution records and retrieval over the industry rulebook that governs

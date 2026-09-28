@@ -42,7 +42,7 @@ Most optimisation portfolios solve toy TSPs. This one:
 - A discrete-event simulation (SimPy) of a full shift with dynamic arrivals, comparing batching every N minutes with batching every M orders.
 - A Pareto chart of distance saved against solve-time budget.
 
-**Out of scope:** automated/AS-RS warehouses, slotting optimisation, multi-picker congestion.
+**Out of scope:** automated/AS-RS warehouses, multi-picker congestion. Slotting is left to phase 2.
 
 ## Deliverables and headline chart
 
@@ -68,3 +68,43 @@ Most optimisation portfolios solve toy TSPs. This one:
 - [ ] Benchmark table reproduces the published instance results within a stated tolerance
 - [ ] Live Cloud Run endpoint with a documented p95 latency
 - [ ] README leads with the Pareto chart
+
+## Phase 2: open warehouse simulator (~10 weeks, optional)
+
+Turn the phase 1 generator, layouts and routing into an open, fast, Gymnasium-compatible simulator
+that lets RL and OR methods be compared fairly on slotting and picking, and shows where each wins.
+Warehouse research lacks a shared benchmark, so published results are hard to compare, and a tool
+other people adopt builds reputation faster than any single result.
+
+**Headline question:** on slotting and picking, where do learned (RL) methods beat classic OR
+heuristics, and where don't they?
+
+**Must have**
+- **Engine:** the phase 1 core with a Rust (PyO3) or Numba hot path. Target 10k+ orders simulated per second on a laptop.
+- **Layouts:** configurable aisles, cross-aisles, depot position and rack heights.
+- **Tasks:** SKU slotting (static and periodic re-slot), on top of phase 1's batching and routing.
+- **Demand:** synthetic order streams with tunable SKU popularity skew and affinity between SKUs.
+- **APIs:** Gymnasium for RL, plus a plain function API for OR methods.
+- **Baselines:** ABC slotting and correlation-based slotting, plus phase 1's routing heuristics.
+- **Learned methods:** PPO for dynamic re-slotting, and a learned batching policy.
+- **Benchmark:** a scenario suite with fixed seeds and a public leaderboard.
+
+**Out of scope:** robotics physics, labour scheduling, real facility data.
+
+| Weeks | Milestone | Exit criterion |
+|-------|-----------|----------------|
+| 1–3 | Engine speed-up + layouts | Travel distances match phase 1; speed target met |
+| 4–5 | Slotting baselines | Classic heuristics reproduce known relative orderings |
+| 6–8 | RL agents | Learned policies trained on 3+ scenarios |
+| 9–10 | Docs, leaderboard, release | pip-installable package, docs site, results table |
+
+**Risks**
+- **Scope creep into a full digital twin.** Freeze the feature list at week 3.
+- **RL underperforms simple heuristics.** That is still a finding; publish the regime map honestly.
+
+**Done when**
+- [ ] A new user installs the package and runs a baseline in under five minutes
+- [ ] Regime map of where learned methods beat heuristics, in the README
+- [ ] Docs site and leaderboard live
+
+**Stack:** Numba or Rust (PyO3), Gymnasium, Stable-Baselines3, OR-Tools.
