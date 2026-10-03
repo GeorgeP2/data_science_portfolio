@@ -17,24 +17,17 @@ describe S-shape informally, so reproducing their published results (T15) is wha
 
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Iterable
 
 from fulfilment_optimisation.domain import Batch, Layout, Location, Route
-
-
-def _by_aisle(locations: Iterable[Location]) -> dict[int, list[Location]]:
-    aisles: dict[int, list[Location]] = defaultdict(list)
-    for loc in locations:
-        aisles[loc.aisle].append(loc)
-    return dict(sorted(aisles.items()))
+from fulfilment_optimisation.routing.base import picks_by_aisle
 
 
 class SShape:
     name = "s_shape"
 
     def length(self, locations: Iterable[Location], layout: Layout) -> float:
-        aisles = _by_aisle(locations)
+        aisles = picks_by_aisle(locations)
         if not aisles:
             return 0.0
         last = max(aisles)
@@ -47,7 +40,7 @@ class SShape:
 
     def route(self, batch: Batch, layout: Layout) -> Route:
         stops: list[Location] = []
-        for i, picks in enumerate(_by_aisle(batch.locations).values()):
+        for i, picks in enumerate(picks_by_aisle(batch.locations).values()):
             # Even-numbered passes (0, 2, ...) go front to back, odd ones back to front. An odd
             # final aisle is in-and-back, so it is also front to back.
             stops.extend(sorted(picks, reverse=i % 2 == 1))

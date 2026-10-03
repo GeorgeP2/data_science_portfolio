@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Iterable
 from typing import Protocol
 
@@ -18,3 +19,11 @@ class Router(Protocol):
     def length(self, locations: Iterable[Location], layout: Layout) -> float:
         """Tour length only, for solvers that just need a batch's cost."""
         ...
+
+
+def picks_by_aisle(locations: Iterable[Location]) -> dict[int, list[Location]]:
+    """Group picks by aisle, with aisles in left-to-right order."""
+    aisles: dict[int, list[Location]] = defaultdict(list)
+    for loc in locations:
+        aisles[loc.aisle].append(loc)
+    return dict(sorted(aisles.items()))
