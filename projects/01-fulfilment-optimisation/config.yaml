@@ -8,13 +8,49 @@ data:
   foodmart: raw/foodmart
   processed: processed
 
-solvers: {}
+# Per-solver settings, passed to the solver's constructor.
+solvers:
+  seed:
+    seed_rule: most_aisles  # de Koster et al. (1999)
+    addition_rule: fewest_new_aisles
+  alns:  # Ropke & Pisinger (2006); see solvers/alns.py
+    max_iterations: 20000  # stop here if the deadline doesn't come first
+    remove_min: 2  # orders removed per iteration: uniform in [remove_min, fraction * n]
+    remove_max_fraction: 0.3
+    determinism: 4.0  # randomisation of worst/related removal (higher = greedier)
+    start_worse_accept: 0.05  # start temperature accepts 5% worse with probability 0.5
+    cooling: 0.9995  # temperature multiplier per iteration
+    segment_length: 100  # iterations between weight updates
+    reaction: 0.1
+    scores: [33, 9, 13]  # new best, improved current, accepted worse
+    cache_size: 200000  # batch-cost cache entries before it is cleared
+  cp_sat:  # set partitioning over a candidate pool; see solvers/cp_sat.py
+    pool_fraction: 0.5  # share of the budget ALNS spends building the pool
+    pool_iterations: 5000  # ALNS iteration cap for the pool (bounds it with no deadline)
+    enumerate_up_to: 12  # instances with at most this many orders get every feasible subset
+    workers: 4  # CP-SAT search workers
+    cost_scale: 1000  # distances x this, rounded, for CP-SAT's integer objective
+    deadline_margin: 0.05  # seconds held back from CP-SAT's time limit (covers post-solve work)
 
 # Grid for `python -m fulfilment_optimisation.benchmark`: every combination is one run.
 benchmark:
   instance_sets: [henn_waescher]
-  solvers: [fcfs]
+  solvers: [fcfs, seed, savings, alns, cp_sat]
   routers: [s_shape, largest_gap]
   time_limits: [1.0]  # seconds
   seeds: [0]
   workers: 4
+
+# POST /batch service limits and preset layouts.
+api:
+  max_orders: 500
+  max_budget_ms: 10000
+  layouts:
+    # Henn & Wäscher (2012) layout, as the parser reads it from the OBSP setting files.
+    henn_waescher:
+      n_aisles: 10
+      n_positions: 45
+      location_length: 1.0
+      aisle_spacing: 5.0
+      end_offset: 1.0
+      depot_offset: 1.0
