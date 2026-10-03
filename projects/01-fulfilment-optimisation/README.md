@@ -11,6 +11,15 @@
 An order-batching and pick-path optimisation API that beats a greedy baseline within a hard latency
 budget, benchmarked against published academic instances so the claims can be checked.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="reports/figures/pareto_dark.png">
+  <img alt="Walking distance saved against first-come-first-served batching, by solve time, for seed, savings, ALNS and CP-SAT under S-shape and largest-gap routing" src="reports/figures/pareto.png">
+</picture>
+
+Savings captures most of the gain in about 10 ms: 24% less walking than FCFS with S-shape
+routing. ALNS adds 2 points by 100 ms and 4.7 by 10 s. CP-SAT stays just below ALNS at every
+budget and only draws level at 10 s ([data](../../docs/projects/p1-fulfilment-optimisation/results/pareto.md)).
+
 ## Data
 
 | Source | What | Licence | Use |
@@ -41,8 +50,9 @@ solution.
 | ALNS | Adaptive large neighbourhood search from the savings start: 3 destroy and 2 repair operators, simulated annealing, adaptive weights, cached tour costs | Ropke & Pisinger (2006) |
 | CP-SAT | Set partitioning over a pool of candidate tours, each costed exactly; exact on ≤ 12 orders, otherwise the pool comes from ALNS | OR-Tools |
 
-**Routing** turns a tour's picks into a walk: S-shape and largest-gap (`routing/`). Batching
-solvers only ask the router for tour lengths, so routing policies are interchangeable.
+**Routing** turns a tour's picks into a walk (`routing/`): S-shape, largest-gap, and optimal
+routing by Ratliff & Rosenthal's (1983) dynamic programme over aisles, checked against brute force.
+Batching solvers only ask the router for tour lengths, so routing policies are interchangeable.
 
 **Benchmark harness** (`benchmark.py`) runs every solver × router × instance × time limit from
 `config.yaml` in a process pool, checks every solution is feasible, and writes
@@ -59,16 +69,26 @@ outside the layout) get 422 with a message.
 
 _Interim: the Pareto chart over budgets is still to come._
 
-| Solver | Distance saved vs FCFS (S-shape) | (largest gap) | Solve time p50 / p95 |
-|--------|---------------------------------:|--------------:|---------------------:|
-| FCFS | – | – | < 0.1 ms |
-| Seed | 15.2% | 10.6% | 0.6 / 1.5 ms |
-| Savings | 24.4% | 20.7% | 11–20 / 35–57 ms |
-| ALNS | **27.8%** | **23.0%** | uses the 1 s budget |
-| CP-SAT | 27.2% | 22.9% | uses the 1 s budget |
+Distance saved against FCFS with the same routing policy, at a 1 s budget:
+
+| Solver | S-shape | Largest gap | Optimal routing | Solve time p50 / p95 |
+|--------|--------:|------------:|----------------:|---------------------:|
+| FCFS (mean tour distance, LU) | 6,035 | 5,762 | 5,080 | < 0.1 ms |
+| Seed | 15.2% | 10.6% | 11.7% | 0.6 / 1.5 ms |
+| Savings | 24.4% | 20.7% | 19.8% | 11–12 / 38–41 ms (95 / 295 ms with optimal) |
+| ALNS | **27.6%** | **23.2%** | 21.7% | uses the budget |
+| CP-SAT | 27.2% | 22.7% | **22.2%** | uses the budget |
 
 Mean over 96 instances per routing policy, on a laptop CPU. ALNS and CP-SAT are never worse than
-savings on any instance; seed is worse than FCFS on 4.
+savings on any instance; seed is worse than FCFS on 2 per routing policy.
+
+**Routing matters as much as batching.** On the same tours, S-shape walks 19.7% and largest gap
+16.2% further than optimal routing (1,308 tours built by savings). Percentages above are against
+FCFS *with the same routing*, so optimal routing looks smaller there only because FCFS benefits
+too: in absolute terms, CP-SAT with optimal routing walks 3,939 LU on average, **34.7% less than
+FCFS with S-shape**, against 27.8% for the best S-shape result. With optimal routing, CP-SAT
+overtakes ALNS (better on 48 of 96 instances): the exact router is about 15× slower per call, so
+ALNS gets fewer iterations, while CP-SAT proves its pool optimal in 65% of runs.
 
 **Against published results.** No per-instance distances are published for these instances, so
 the check is relative: each solver's improvement over C&W(ii) savings, per class, against Henn &
@@ -91,10 +111,6 @@ header): with a 50 ms budget, p99 is 22.7 ms on the laptop, since the solver sto
 leave time for the response. On one emulated x86 CPU, closer to a small cloud instance, the
 slowest of 300 requests took 50.6 ms. Live numbers come with the deploy.
 
-_Key figure(s):_
-
-<!-- ![](reports/figures/example.png) -->
-
 ## Key takeaways
 
 Interim, from the 1 s results above:
@@ -104,8 +120,10 @@ Interim, from the 1 s results above:
 - **ALNS needs more than 1 s on 60+ orders to match published quality.** At 10 s it is within
   1 point of the best published method on every shared class. The largest-gap router is 4.5×
   slower per call than S-shape, so it gets fewer iterations per second.
-- **CP-SAT doesn't beat ALNS at 1 s.** Half the budget goes on building its pool, which costs more
-  than recombining tours gains back. It proves optimality over its pool on 71% of 20-order
+- **Optimal routing is worth more than a better batching heuristic.** The heuristics walk 16–20%
+  further than optimal on the same tours, more than ALNS gains over savings.
+- **CP-SAT doesn't beat ALNS at any budget up to 10 s** with the fast heuristic routers. Half the budget goes on building its
+  pool, which costs more than recombining tours gains back; it draws level only at 10 s. It proves optimality over its pool on 71% of 20-order
   instances, but almost never at 40 orders or more.
 - **A hard latency budget takes engineering beyond the solver.** Keeping p99 under budget needed
   the clock to start when the request arrives, the response built without nested pydantic models,
@@ -121,6 +139,20 @@ cd projects/01-fulfilment-optimisation
 PYTHONPATH=src python -m fulfilment_optimisation.download henn_waescher  # instances → data/raw/
 PYTHONPATH=src python -m fulfilment_optimisation.benchmark               # grid from config.yaml → outputs/
 pytest
+```
+
+The Pareto chart needs a sweep over budgets (about 45 minutes). It runs in three parts so that
+single-threaded ALNS can use one worker per performance core while CP-SAT, which runs 4 threads
+per solve, gets fewer workers:
+
+```bash
+B="PYTHONPATH=src python -m fulfilment_optimisation.benchmark"
+eval $B --solvers fcfs seed savings --time-limits 1 --workers 6 --output sweep_constructive.parquet
+eval $B --solvers alns --time-limits 0.1 0.25 0.5 1 2 5 10 \
+    --param alns.max_iterations=100000000 --workers 6 --output sweep_alns.parquet
+eval $B --solvers cp_sat --time-limits 0.1 0.25 0.5 1 2 5 10 \
+    --param cp_sat.pool_iterations=100000000 --workers 2 --output sweep_cp_sat.parquet
+PYTHONPATH=src python -m fulfilment_optimisation.report  # → reports/figures/pareto*.png
 ```
 
 The benchmark grid (solvers, routers, time limits, seeds) and every solver parameter are in

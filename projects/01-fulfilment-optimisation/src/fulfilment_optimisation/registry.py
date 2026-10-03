@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from fulfilment_optimisation.routing import LargestGap, Router, SShape
+from fulfilment_optimisation.routing import LargestGap, Optimal, Router, SShape
 from fulfilment_optimisation.solvers import (
     ALNS,
     FCFS,
@@ -49,4 +49,8 @@ SOLVERS: dict[str, SolverFactory] = {
     "alns": _alns,
     "cp_sat": _cp_sat,
 }
-ROUTERS: dict[str, Callable[[], Router]] = {"s_shape": SShape, "largest_gap": LargestGap}
+ROUTERS: dict[str, Callable[[], Router]] = {
+    "s_shape": SShape,
+    "largest_gap": LargestGap,
+    "optimal": Optimal,
+}
