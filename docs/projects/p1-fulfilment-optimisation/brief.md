@@ -109,3 +109,38 @@ heuristics, and where don't they?
 - [ ] Docs site and leaderboard live
 
 **Stack:** Numba or Rust (PyO3), Gymnasium, Stable-Baselines3, OR-Tools.
+
+## Phase 3: graph-defined layouts (optional, after phase 2)
+
+Phases 1 and 2 describe a warehouse with parameters: parallel aisles, cross-aisles and a depot.
+Real sites rarely fit that shape. They have L-shaped floors, blocked or one-way aisles, angled
+aisles, several pack stations and mezzanines. Phase 3 models the layout as a graph, so any walkable
+floor plan can be batched and routed. It also measures how much the rectangle heuristics lose when
+a site doesn't match their assumptions.
+
+**Headline question:** on irregular layouts, how far are S-shape and largest-gap routing from an
+exact tour, and do the batching gains from phases 1 and 2 still hold?
+
+**Must have**
+- **Layout model:** a directed graph. Nodes are pick faces, aisle ends, depots and pack stations;
+  edges are walkable segments with lengths. One-way and blocked aisles are just edges or the lack
+  of them.
+- **Input format:** a plain file format (JSON) for nodes and segments, validated on load, with a
+  few hand-built example sites.
+- **Distances:** shortest paths between pick nodes, cached per layout.
+- **Routing:** exact or near-exact tours by TSP over the pick nodes (OR-Tools or LKH). Rectangle
+  heuristics run only where the layout supports them.
+- **Compatibility:** phase 1 and 2 layouts compile to graphs and give identical distances, so
+  earlier results carry over.
+- **Generator:** irregular layouts (missing aisles, extra cross-aisles, several depots) for
+  scenario suites.
+- **API:** `POST /batch` accepts a graph layout as well as the parameterised one.
+
+**Out of scope:** CAD or drawing import, congestion between pickers, real facility data.
+
+**Done when**
+- [ ] Rectangle layouts compiled to graphs reproduce phase 1 distances on all 96 Henn & Wäscher
+      instances
+- [ ] Results table on at least 5 irregular layouts: rectangle heuristics vs TSP routing, and
+      batching savings vs FCFS
+- [ ] The API batches a request with a graph layout
