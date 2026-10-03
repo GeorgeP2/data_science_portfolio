@@ -2,9 +2,10 @@ import time
 from pathlib import Path
 
 import pytest
-from fulfilment_optimisation.benchmark import SOLVERS, grid, run_grid, summarise
+from fulfilment_optimisation.benchmark import grid, run_grid, summarise
 from fulfilment_optimisation.domain import Batch, Instance, Location, Order
 from fulfilment_optimisation.parsers.henn_waescher import load_henn_waescher
+from fulfilment_optimisation.registry import SOLVERS
 from fulfilment_optimisation.solvers import Deadline, Incumbent, Solution, build_solution
 
 FIXTURE = Path(__file__).parent / "fixtures" / "henn_waescher" / "MTCR_X" / "1l-3-45-0.txt"

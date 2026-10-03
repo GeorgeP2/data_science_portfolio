@@ -18,3 +18,17 @@ benchmark:
   time_limits: [1.0]  # seconds
   seeds: [0]
   workers: 4
+
+# POST /batch service limits and preset layouts.
+api:
+  max_orders: 500
+  max_budget_ms: 10000
+  layouts:
+    # Henn & Wäscher (2012) layout, as the parser reads it from the OBSP setting files.
+    henn_waescher:
+      n_aisles: 10
+      n_positions: 45
+      location_length: 1.0
+      aisle_spacing: 5.0
+      end_offset: 1.0
+      depot_offset: 1.0

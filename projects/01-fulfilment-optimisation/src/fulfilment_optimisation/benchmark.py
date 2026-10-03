@@ -22,23 +22,14 @@ import pandas as pd
 
 from fulfilment_optimisation.domain import Instance
 from fulfilment_optimisation.parsers.henn_waescher import load_all
-from fulfilment_optimisation.routing import LargestGap, Router, SShape
-from fulfilment_optimisation.solvers import FCFS, Deadline, Solver, check_feasible
+from fulfilment_optimisation.registry import ROUTERS, SOLVERS
+from fulfilment_optimisation.solvers import Deadline, Solver, check_feasible
 from portfolio import ProjectPaths, get_logger, load_config, seed_everything
 from portfolio.io import save_json, write_table
 
 log = get_logger(__name__)
 
 BASELINE = "fcfs"
-
-
-def _fcfs(seed: int) -> Solver:
-    return FCFS()
-
-
-# Factories take the run's seed, so stochastic solvers can be seeded per run.
-SOLVERS: dict[str, Callable[[int], Solver]] = {"fcfs": _fcfs}
-ROUTERS: dict[str, Callable[[], Router]] = {"s_shape": SShape, "largest_gap": LargestGap}
 
 
 @dataclass(frozen=True, slots=True)
