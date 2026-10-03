@@ -25,5 +25,5 @@ files.
 
 The workbooks number instances 0–95. `instance` maps them to files: ids 0–47 are the `MTCR_05_06_07`
 folder and ids 48–95 the `MTCR_055_065_075` folder, each ordered by setting number (the number
-before `l` in the filename). The mapping was checked against each workbook's per-MTCR sheet: every
-id's MTCR value, EDD value and GVNS value agree.
+before `s` or `l` in the filename). The mapping was checked against each workbook's per-MTCR sheet:
+every id's MTCR value, EDD value and GVNS value agree.

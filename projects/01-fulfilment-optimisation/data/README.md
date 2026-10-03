@@ -22,8 +22,11 @@ to commit.
 - **Source:** [OPTSICOM order batching and sequencing page](https://grafo.etsii.urjc.es/optsicom/obsp.html)
   (`obsp_instances.zip`, 0.4 MB zipped, 2.7 MB unpacked, plus two results workbooks in `results/`).
 - **Contents:** 96 instances in two folders of 48 (`MTCR_05_06_07`, `MTCR_055_065_075`). Each
-  instance file (`<setting>l-<orders>-<capacity>-0.txt`) has a matching `sett<setting>.txt` layout
-  file.
+  instance file (`<setting>[s|l]-<orders>-<capacity>-0.txt`) has a matching `sett<setting>.txt`
+  layout file in the same folder; setting numbers are local to a folder.
+  - The `s`/`l` letter matches the settings file's `routing___` field (S-shape or largest gap). The
+    published results cover both routing policies for every instance, so it isn't an instance class.
+  - Aisle indices in instance files count each side of an aisle separately (0–19 for 10 aisles).
   - Layout: 10 aisles, 45 cells per aisle side (90 locations per aisle), depot bottom left,
     class-based (ABC) storage.
   - 20, 40, 60 or 80 orders; picker capacity 45 or 75 items.
