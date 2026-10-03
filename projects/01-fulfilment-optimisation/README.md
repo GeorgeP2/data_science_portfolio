@@ -152,6 +152,99 @@ Interim, from the 1 s results above:
 - **Limitation:** everything assumes a single-block rectangular layout, the benchmarks' geometry.
   Real sites are often irregular; graph-defined layouts are planned as phase 3.
 
+## Design decisions and trade-offs
+
+### 1. Batching model: CP-SAT set partitioning, not a MIP
+
+**Chosen:** the model picks tours from a pool of candidates, each costed exactly by the router,
+so that every order is covered once (`solvers/cp_sat.py`). Tour length isn't linear in which orders
+share a tour, so a compact model would have to approximate distance; set partitioning keeps
+distance exact and puts the approximation in the pool instead. CP-SAT solves it because the model
+is pure 0/1 with exactly-one constraints (its home ground), it accepts a full solution hint, it
+reports every improving solution through a callback (needed for the latency budget), and it's
+already in OR-Tools.
+
+**Alternative: a MIP solver** (e.g. HiGHS or SCIP) on the same model. Set-partitioning LP
+relaxations are tight, so a MIP would likely prove optimality over large pools faster and report
+a gap. It wasn't benchmarked here, so that stays a hypothesis.
+
+**What was measured is CP-SAT against ALNS.** With fast heuristic routers, ALNS is on the Pareto
+frontier at every budget from 0.1 to 10 s, and CP-SAT only draws level at 10 s
+([Pareto data](../../docs/projects/p1-fulfilment-optimisation/results/pareto.md)). Building the pool costs half the budget, which outweighs what
+recombining tours wins back; CP-SAT proves its pool optimal in 71% of 20-order runs but almost never
+at 40+ orders at 1 s. With the exact router, which is about 15× slower per call, ALNS gets far
+fewer iterations and CP-SAT wins (22.2% vs 21.7% saved, better on 48 of 96 instances; README
+results table above). **Which solver is better depends on how expensive routing is.**
+
+### 2. Anytime solving under a hard latency budget
+
+**Chosen:** every solver checks a shared deadline itself and publishes each improvement to a
+thread-safe incumbent (`solvers/base.py`). The service computes FCFS first, runs the chosen solver
+in a worker thread until `budget_ms` minus a 30 ms margin, and returns the solver's result, its
+best-so-far, or FCFS, whichever is best (`api/runner.py`). A late worker is abandoned, not killed.
+
+**Alternative: a process per request, killed at the deadline.** Rejected: starting a process costs
+more than most budgets, and the best-so-far would have to cross a process boundary.
+
+**Keeping the budget hard took more than the solver.** On a slow CPU the first version answered in
+106-125 ms at a 50 ms budget (CI, reproduced in a 1-CPU emulated container). Three fixes, each
+measured: start the clock when the request arrives (parsing 300 orders took ~24 ms), build the
+response as plain JSON instead of ~1,000 nested pydantic models (~45 ms), and collect garbage
+between requests rather than during them (27-37 ms pauses). Now p99 is 22.7 ms at a 50 ms budget on
+a laptop, and the slowest of 300 requests on the emulated CPU took 50.6 ms
+(`tests/test_api_budget.py`, which asserts p99 ≤ budget + margin). The FCFS guard also earned its
+place: in the held-out run, savings returned tours 4.8× FCFS's length when it ran out of time
+([held-out notes](../../docs/projects/p1-fulfilment-optimisation/results/held_out.md#notes-added-after-the-run)); the service would have returned FCFS.
+
+### 3. Generator validity
+
+**Chosen:** a generator whose ranges come from the KIT suite (13,200 shifts;
+[profile](../../docs/projects/p1-fulfilment-optimisation/results/kit_profile.md)), with order size as a preset: KIT orders are 1-3 lines, the Henn &
+Wäscher benchmark's 4-24. It was checked against both with thresholds fixed beforehand
+([validity](../../docs/projects/p1-fulfilment-optimisation/results/generator_validity.md)): KIT's standard case matches (total variation distance
+0.003 on lines and aisles per order), mean aisles per order across all 132 KIT settings is within
+0.022, and solvers rank identically on generated and published Henn & Wäscher instances (Spearman
+1.00, each within 0.3-1.6 points).
+
+**Alternative: benchmark only on the published instances.** Rejected: 96 fixed instances invite
+over-tuning and can't express peak days or affinity, and KIT alone has none of the large orders
+the batching literature uses.
+
+**Mismatches, stated:** the preset built from Henn & Wäscher's paper failed on aisles visited
+(0.207) because their instance files differ from the paper (orders 4-24 not 5-25; class B in two
+aisles not three); a preset corrected to the files passes (0.036), and both are reported. KIT's
+Latin hypercube settings label a wave stochasticity that has no effect on arrivals (r = 0.00), so
+waves are calibrated on its one-factor settings. Generated orders visit 0.027 fewer aisles than
+KIT's under A-closest-to-depot storage.
+
+### 4. API contract
+
+**Chosen:** `POST /batch` either returns a feasible answer within `budget_ms` or fails with a
+reason (`api/app.py`, `tests/test_api.py`):
+
+- **413** above 500 orders (`api.max_orders`): the request is too big to answer within any budget
+  the service allows.
+- **422** with a message when the request can't be solved as given: an order larger than the
+  picker's capacity, a pick outside the layout, an unknown layout id, a budget over 10 s, or an
+  invalid field (duplicate order ids, unknown solver).
+- A slow or failing solver is never an error: the response carries `fallback_used` and `status`,
+  and `solver` names whose tours were returned.
+
+**Alternatives rejected:** silently dropping orders that don't fit (hides a data problem the
+caller must fix), or letting requests wait past their budget when all workers are busy (they
+fall back to FCFS at the deadline instead).
+
+### Limitations
+
+- **Layout:** everything assumes a single-block rectangular warehouse, the benchmarks' geometry.
+  Real sites are often irregular; graph-defined layouts are planned as phase 3.
+- **Published comparison is relative:** no per-instance distances exist for the benchmark, and the
+  published tardiness values didn't reproduce ([notes](references/README.md)).
+- **KIT-style picker capacity (20 items) is assumed:** KIT has none.
+- **Exact routing on large windows:** too slow at 1 s per 30-minute window on peak days (held-out
+  run); savings should fall back to FCFS and search should use a fast router there.
+- **Deploy pending:** the live latency figure needs the Lambda deployment.
+
 ## Reproduce
 
 ```bash
