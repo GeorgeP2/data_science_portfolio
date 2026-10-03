@@ -47,8 +47,12 @@ def run_with_budget(
     budget_s: float,
     margin_s: float,
     executor: Executor,
+    started_at: float | None = None,
 ) -> BudgetedResult:
-    deadline = Deadline(time.monotonic() + budget_s - margin_s)
+    """``started_at`` (``time.monotonic()``) is when the request arrived; the budget runs from
+    then, so time spent receiving and validating the request counts against it."""
+    start = time.monotonic() if started_at is None else started_at
+    deadline = Deadline(start + budget_s - margin_s)
     fcfs = FCFS().solve(instance, router, Deadline.never())
 
     def fallback(timed_out: bool) -> BudgetedResult:

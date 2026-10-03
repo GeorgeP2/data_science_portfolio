@@ -186,7 +186,8 @@ class ALNS:
 
         # --- repair operators: insert every removed order, best-first by a priority rule ---
 
-        def repair(batches: Batches, removed: list[int], regret: bool) -> Batches:
+        def repair(batches: Batches, removed: list[int], regret: bool) -> Batches | None:
+            """The repaired solution, or None if the deadline passes part-way through."""
             batches = list(batches)
             loads = [sum(sizes[i] for i in b) for b in batches]
             costs = [cost(b) for b in batches]
@@ -207,6 +208,9 @@ class ALNS:
             alone = {i: cost(frozenset((i,))) for i in removed}
 
             while table:
+                # Large repairs take tens of ms on slow machines; don't overrun the deadline.
+                if deadline.expired():
+                    return None
                 # Lowest key wins: (-regret, cheapest insertion, order) or (cheapest, 0, order).
                 choice: tuple[tuple[float, float, int], int] | None = None
                 for i, row in table.items():
@@ -263,7 +267,11 @@ class ALNS:
             removed = destroys[d](current, q)
             gone = set(removed)
             kept = [b - gone for b in current]
-            candidate = repair([b for b in kept if b], removed, repairs[r])
+            repaired = repair([b for b in kept if b], removed, repairs[r])
+            if repaired is None:
+                finished = False
+                break
+            candidate = repaired
             candidate_cost = sum(cost(b) for b in candidate)
             if visited is not None:
                 visited.update(candidate)

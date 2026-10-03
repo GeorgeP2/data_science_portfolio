@@ -12,13 +12,20 @@ layout, an unknown layout id or a budget over the limit).
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import time
+from collections.abc import Awaitable, Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 
 from fulfilment_optimisation.api.runner import run_with_budget
-from fulfilment_optimisation.api.schemas import BatchRequest, BatchResponse, LayoutIn
+from fulfilment_optimisation.api.schemas import (
+    BatchRequest,
+    BatchResponse,
+    LayoutIn,
+    response_payload,
+)
 from fulfilment_optimisation.domain import Layout
 from fulfilment_optimisation.registry import ROUTERS, SOLVERS, SolverFactory
 from portfolio import ProjectPaths, load_config
@@ -52,12 +59,23 @@ def create_app(
             raise HTTPException(422, f"unknown layout {layout!r}; choose from {sorted(presets)}")
         return presets[layout]
 
+    @app.middleware("http")
+    async def timing(raw: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+        # Stamped before the body is read, so the latency budget covers parsing and validation.
+        raw.state.received = time.monotonic()
+        response = await call_next(raw)
+        elapsed_ms = 1000 * (time.monotonic() - raw.state.received)
+        response.headers["Server-Timing"] = f"total;dur={elapsed_ms:.1f}"
+        return response
+
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.post("/batch", responses=_ERRORS)  # type: ignore[arg-type]
-    def batch(request: BatchRequest) -> BatchResponse:
+    # Returns a JSONResponse built from plain data (see ``response_payload``); ``response_model``
+    # still documents the shape in OpenAPI.
+    @app.post("/batch", response_model=BatchResponse, responses=_ERRORS)  # type: ignore[arg-type]
+    def batch(request: BatchRequest, raw: Request) -> JSONResponse:
         if len(request.orders) > limits.max_orders:
             raise HTTPException(
                 413, f"{len(request.orders)} orders; the limit is {limits.max_orders} per request"
@@ -79,13 +97,16 @@ def create_app(
             budget_s=request.budget_ms / 1000,
             margin_s=limits.response_margin_ms / 1000,
             executor=executor,
+            started_at=raw.state.received,
         )
-        return BatchResponse.from_solution(
-            result.solution,
-            result.solver,
-            request.router,
-            fallback_used=result.fallback_used,
-            timed_out=result.timed_out,
+        return JSONResponse(
+            response_payload(
+                result.solution,
+                result.solver,
+                request.router,
+                fallback_used=result.fallback_used,
+                timed_out=result.timed_out,
+            )
         )
 
     return app
