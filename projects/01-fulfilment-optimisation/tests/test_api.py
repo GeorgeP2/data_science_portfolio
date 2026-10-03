@@ -1,4 +1,5 @@
 import copy
+import json
 
 import pytest
 
@@ -111,3 +112,8 @@ def test_openapi_has_examples(client):
     schemas = client.get("/openapi.json").json()["components"]["schemas"]
     assert schemas["BatchRequest"]["examples"] == [_EXAMPLE_REQUEST]
     assert schemas["BatchResponse"]["examples"] == [_EXAMPLE_RESPONSE]
+
+
+def test_example_file_matches_documented_request():
+    path = ProjectPaths.from_file(__file__).root / "examples" / "batch_request.json"
+    assert json.loads(path.read_text()) == _EXAMPLE_REQUEST

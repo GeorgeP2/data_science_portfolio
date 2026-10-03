@@ -1,0 +1,8 @@
+# Allowlist: the image gets the shared package and this project's code and config, nothing else
+# (no data/, outputs/ or .venv).
+*
+!pyproject.toml
+!src/portfolio/
+!projects/01-fulfilment-optimisation/config.yaml
+!projects/01-fulfilment-optimisation/src/
+**/__pycache__
