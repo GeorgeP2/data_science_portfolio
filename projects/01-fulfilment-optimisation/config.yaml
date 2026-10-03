@@ -95,8 +95,11 @@ generator:
       lines: [1, 2, 3]
       weights: [0.8, 0.15, 0.05]
       capacity: 20
-    henn_waescher:  # 5-25 items uniformly, 2-5 orders a tour (Henn & Wäscher, section 6.2)
-      lines: [5, 25]  # inclusive range
+    henn_waescher:  # 4-24 items uniformly, as in the benchmark files (T20; the paper says 5-25)
+      lines: [4, 24]  # inclusive range
+      capacity: 45
+    henn_waescher_paper:  # 5-25 items uniformly, 2-5 orders a tour (Henn & Wäscher, section 6.2)
+      lines: [5, 25]
       capacity: 45
   # Named scenarios. Unset keys fall back to `baseline`.
   scenarios:
@@ -117,7 +120,26 @@ generator:
       storage_policy: clustered
     tight_due_dates:  # KIT's tightest OFAT rule
       due_dates: {rule: relative, offset_seconds: 600}
-    henn_waescher_like:  # benchmark-sized orders on generated layouts, for batching comparisons
+    henn_waescher_like:  # what the Henn & Wäscher files contain, for batching comparisons
       orders_per_shift: 60
       order_size: henn_waescher
-      storage_policy: A_to_X  # their class-based storage puts A articles in the first aisle
+      layout: {aisles: [10, 10], locations_per_aisle: [45, 45]}
+      popularity: henn_waescher  # A = aisle 1 (52% of demand), B = aisles 2-3, C = the rest
+      storage_policy: A_to_X
+    henn_waescher_paper:  # the same setup as their section 6 describes it (T20: files differ)
+      orders_per_shift: 60
+      order_size: henn_waescher_paper
+      layout: {aisles: [10, 10], locations_per_aisle: [45, 45]}
+      popularity: henn_waescher_paper  # B = aisles 2-4, C = aisles 5-10
+      storage_policy: A_to_X
+
+# T20 generator validity: `python -m fulfilment_optimisation.validity`. Statistics and thresholds
+# set before any comparison was computed. Discrete distributions are compared by total variation
+# distance (TVD: half the summed absolute difference in probabilities, 0 = identical, 1 = disjoint).
+validity:
+  tvd_match: 0.05  # at most this: the distributions match
+  tvd_close: 0.15  # at most this: close; above it: a mismatch, reported as such
+  setting_mae_aisles: 0.05  # per-KIT-setting mean aisles per order, mean absolute error
+  orders_per_setting: 4000  # orders generated per KIT setting
+  ranking_instances: 24  # generated henn_waescher_like instances for the solver ranking
+  ranking_time_limit: 1.0
