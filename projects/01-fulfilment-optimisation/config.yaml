@@ -9,3 +9,12 @@ data:
   processed: processed
 
 solvers: {}
+
+# Grid for `python -m fulfilment_optimisation.benchmark`: every combination is one run.
+benchmark:
+  instance_sets: [henn_waescher]
+  solvers: [fcfs]
+  routers: [s_shape, largest_gap]
+  time_limits: [1.0]  # seconds
+  seeds: [0]
+  workers: 4
