@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from fulfilment_optimisation.routing import LargestGap, Router, SShape
-from fulfilment_optimisation.solvers import FCFS, Savings, SeedBatching, Solver
+from fulfilment_optimisation.solvers import ALNS, FCFS, Savings, SeedBatching, Solver
 
 # A factory takes the run's seed (for stochastic solvers) and the solver's ``solvers.<name>``
 # section of config.yaml.
@@ -25,5 +25,14 @@ def _savings(seed: int, params: Mapping[str, Any]) -> Solver:
     return Savings()
 
 
-SOLVERS: dict[str, SolverFactory] = {"fcfs": _fcfs, "seed": _seed, "savings": _savings}
+def _alns(seed: int, params: Mapping[str, Any]) -> Solver:
+    return ALNS(seed=seed, **params)
+
+
+SOLVERS: dict[str, SolverFactory] = {
+    "fcfs": _fcfs,
+    "seed": _seed,
+    "savings": _savings,
+    "alns": _alns,
+}
 ROUTERS: dict[str, Callable[[], Router]] = {"s_shape": SShape, "largest_gap": LargestGap}

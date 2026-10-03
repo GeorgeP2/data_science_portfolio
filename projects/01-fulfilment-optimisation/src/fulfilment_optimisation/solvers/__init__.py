@@ -1,5 +1,6 @@
 """Order batching solvers: group an instance's orders into capacity-feasible picker tours."""
 
+from fulfilment_optimisation.solvers.alns import ALNS
 from fulfilment_optimisation.solvers.base import (
     Deadline,
     Incumbent,
@@ -13,6 +14,7 @@ from fulfilment_optimisation.solvers.savings import Savings
 from fulfilment_optimisation.solvers.seed import SeedBatching
 
 __all__ = [
+    "ALNS",
     "FCFS",
     "Deadline",
     "Incumbent",

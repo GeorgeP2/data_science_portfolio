@@ -13,11 +13,22 @@ solvers:
   seed:
     seed_rule: most_aisles  # de Koster et al. (1999)
     addition_rule: fewest_new_aisles
+  alns:  # Ropke & Pisinger (2006); see solvers/alns.py
+    max_iterations: 20000  # stop here if the deadline doesn't come first
+    remove_min: 2  # orders removed per iteration: uniform in [remove_min, fraction * n]
+    remove_max_fraction: 0.3
+    determinism: 4.0  # randomisation of worst/related removal (higher = greedier)
+    start_worse_accept: 0.05  # start temperature accepts 5% worse with probability 0.5
+    cooling: 0.9995  # temperature multiplier per iteration
+    segment_length: 100  # iterations between weight updates
+    reaction: 0.1
+    scores: [33, 9, 13]  # new best, improved current, accepted worse
+    cache_size: 200000  # batch-cost cache entries before it is cleared
 
 # Grid for `python -m fulfilment_optimisation.benchmark`: every combination is one run.
 benchmark:
   instance_sets: [henn_waescher]
-  solvers: [fcfs, seed, savings]
+  solvers: [fcfs, seed, savings, alns]
   routers: [s_shape, largest_gap]
   time_limits: [1.0]  # seconds
   seeds: [0]
