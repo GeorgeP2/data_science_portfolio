@@ -50,6 +50,29 @@ PYTHONPATH=src python -m fulfilment_optimisation.download   # benchmark instance
 pytest
 ```
 
+## Run locally
+
+The service runs in a container. Build from the repo root, since the image includes the shared
+`src/portfolio` package:
+
+```bash
+docker build -f projects/01-fulfilment-optimisation/Dockerfile -t fulfilment-optimisation .
+docker run --rm -p 8080:8080 fulfilment-optimisation
+```
+
+In another terminal:
+
+```bash
+curl -s localhost:8080/batch -H 'Content-Type: application/json' \
+  -d @projects/01-fulfilment-optimisation/examples/batch_request.json
+```
+
+The response lists each batch's orders and its picker route, with the total distance. Interactive
+API docs are at <http://localhost:8080/docs>.
+
+The image is 76 MB compressed (347 MB unpacked). It contains no benchmark data: its ignore file
+lets in only the code and `config.yaml`.
+
 ## Skills demonstrated
 
 - …
