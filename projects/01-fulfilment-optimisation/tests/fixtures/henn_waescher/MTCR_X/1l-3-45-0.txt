@@ -1,0 +1,9 @@
+Order 0	number of articles 2	due date 188.063
+0	Aisle 0	Location 0
+1	Aisle 19	Location 44
+Order 1	number of articles 1	due date 95.5
+0	Aisle 7	Location 12
+Order 2	number of articles 3	due date 240
+0	Aisle 2	Location 3
+1	Aisle 3	Location 3
+2	Aisle 10	Location 30
