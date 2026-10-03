@@ -69,7 +69,9 @@ def client() -> TestClient:
     # The request model validates solver names against the registry; allow the test solvers.
     original = dict(schemas.SOLVERS)
     schemas.SOLVERS.update(TEST_SOLVERS)
-    yield TestClient(create_app(CFG, solvers=TEST_SOLVERS))
+    # As a context manager so the app's lifespan (garbage-collection settings) runs.
+    with TestClient(create_app(CFG, solvers=TEST_SOLVERS)) as client:
+        yield client
     schemas.SOLVERS.clear()
     schemas.SOLVERS.update(original)
 
@@ -168,3 +170,12 @@ def test_response_time_within_budget_for_99_percent(client):
     p99 = times[98]
     # Server-side time: from the request arriving (before body parsing) to the response being ready.
     assert p99 <= budget_ms + MARGIN_MS, f"p99 {p99:.1f} ms; slowest {times[-3:]}"
+
+
+def test_garbage_collection_runs_between_requests_not_during(client):
+    import gc
+
+    assert not gc.isenabled()  # the app's lifespan turned automatic collection off
+    collections = gc.get_stats()[2]["collections"]
+    post(client, random_request(20, seed=99, solver="fcfs"))
+    assert gc.get_stats()[2]["collections"] > collections  # collected after the response

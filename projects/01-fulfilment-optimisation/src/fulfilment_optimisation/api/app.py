@@ -8,16 +8,25 @@ response margin, worker threads and preset layouts come from the ``api`` section
 ``config.yaml``. Errors return ``{"detail": "<message>"}``: 413 when a request has more orders
 than the limit, 422 when it can't be solved as given (an order over capacity, a pick outside the
 layout, an unknown layout id or a budget over the limit).
+
+With ``api.gc_after_response`` (the default), automatic garbage collection is off while the server
+runs, and a collection runs after each response has been sent instead. A full collection during a
+request measured 25-35 ms on a slow CPU, enough to break the budget. Objects alive at startup are
+frozen, so each collection only scans what requests created (about 2 ms). With several requests in
+flight, a collection still briefly pauses the others; on Lambda there is one request per instance.
 """
 
 from __future__ import annotations
 
+import gc
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
+from starlette.background import BackgroundTask
 
 from fulfilment_optimisation.api.runner import run_with_budget
 from fulfilment_optimisation.api.schemas import (
@@ -46,10 +55,24 @@ def create_app(
     presets = {name: Layout(**spec) for name, spec in limits.layouts.items()}
     executor = ThreadPoolExecutor(max_workers=limits.solver_threads, thread_name_prefix="solver")
 
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        if limits.gc_after_response:
+            gc.collect()
+            gc.freeze()
+            gc.disable()
+        try:
+            yield
+        finally:
+            if limits.gc_after_response:
+                gc.enable()
+                gc.unfreeze()
+
     app = FastAPI(
         title="Fulfilment Optimisation Service",
         description="Order batching and picker routing for single-block warehouses.",
         version="0.1.0",
+        lifespan=lifespan,
     )
 
     def resolve_layout(layout: LayoutIn | str) -> Layout:
@@ -66,6 +89,8 @@ def create_app(
         response = await call_next(raw)
         elapsed_ms = 1000 * (time.monotonic() - raw.state.received)
         response.headers["Server-Timing"] = f"total;dur={elapsed_ms:.1f}"
+        if not gc.isenabled():
+            response.background = BackgroundTask(gc.collect)  # runs after the response is sent
         return response
 
     @app.get("/health")

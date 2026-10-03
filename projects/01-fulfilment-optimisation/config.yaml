@@ -48,6 +48,7 @@ api:
   max_budget_ms: 10000
   response_margin_ms: 30  # held back from budget_ms for FCFS, the response and serialisation
   solver_threads: 4  # concurrent solves; extra requests wait, then fall back to FCFS
+  gc_after_response: true  # collect garbage between requests, not during them (see api/app.py)
   layouts:
     # Henn & Wäscher (2012) layout, as the parser reads it from the OBSP setting files.
     henn_waescher:
