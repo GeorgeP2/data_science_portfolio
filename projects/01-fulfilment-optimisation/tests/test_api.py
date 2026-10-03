@@ -37,7 +37,7 @@ def test_example_request_returns_documented_response(client):
     assert body == {**_EXAMPLE_RESPONSE, "solve_time_ms": body["solve_time_ms"]}
 
 
-@pytest.mark.parametrize("router", ["s_shape", "largest_gap"])
+@pytest.mark.parametrize("router", ["s_shape", "largest_gap", "optimal"])
 def test_batches_cover_every_order_within_capacity(client, router):
     body = client.post("/batch", json=request(router=router, capacity=3)).json()
     ids = [i for batch in body["batches"] for i in batch["order_ids"]]
