@@ -58,3 +58,18 @@ api:
       aisle_spacing: 5.0
       end_offset: 1.0
       depot_offset: 1.0
+
+# T15 distance check: `python -m fulfilment_optimisation.published`. Henn & Wäscher (FEMM 07/2010,
+# Tables 9.2 and 9.5) publish each method's improvement of the average tour length over C&W(ii)
+# per class (orders, capacity, routing), on their own randomly generated instances from the same
+# generator. Only the classes shared with our instances are compared (40/60/80 orders x 45/75).
+# Tolerance set before looking at per-class results; the overall averages had been seen
+# (ALNS over savings at 1 s: 4.4% S-shape, 2.8% largest gap, against ABHC 4.6% for both).
+published:
+  reference_method: abhc  # their best method; within 0.1-1.4% of optimal (Tables 9.3, 9.6)
+  solvers: [alns, cp_sat]
+  # Pass if our improvement over savings is at most this many percentage points below theirs.
+  # The instances differ (12 per class here vs 40, depot 1 LU vs 0.5 LU), so class means carry
+  # sampling noise; the 95% bootstrap interval is reported alongside.
+  tolerance_pp: 1.0
+  bootstrap_samples: 2000

@@ -1,6 +1,12 @@
 """Run every solver x router x instance x time limit x seed and summarise the results.
 
     PYTHONPATH=src python -m fulfilment_optimisation.benchmark
+    PYTHONPATH=src python -m fulfilment_optimisation.benchmark --solvers savings alns \
+        --time-limits 10 60 --orders 40 60 80 --param alns.max_iterations=100000000 \
+        --output runs_long.parquet
+
+Without flags, the grid is the ``benchmark`` section of ``config.yaml``; flags override parts of it
+for one-off runs.
 
 The grid is the ``benchmark`` section of ``config.yaml``. Each run writes one row to
 ``outputs/runs.parquet``; ``outputs/metrics.json`` holds per (solver, router, time limit)
@@ -13,6 +19,7 @@ one being timed.
 
 from __future__ import annotations
 
+import argparse
 import itertools
 from collections.abc import Iterable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
@@ -128,29 +135,57 @@ def summarise(runs: pd.DataFrame) -> pd.DataFrame:
     return summary.reset_index().round(4)
 
 
-def main() -> None:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the benchmark grid.")
+    parser.add_argument("--solvers", nargs="+", help="override benchmark.solvers")
+    parser.add_argument("--time-limits", nargs="+", type=float, help="override, in seconds")
+    parser.add_argument("--orders", nargs="+", type=int, help="only instances with these sizes")
+    parser.add_argument(
+        "--param",
+        action="append",
+        default=[],
+        help="solver parameter, e.g. alns.max_iterations=1e8",
+    )
+    parser.add_argument("--workers", type=int, help="override benchmark.workers")
+    parser.add_argument("--output", default="runs.parquet", help="file name under outputs/")
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    args = parse_args(argv)
     paths = ProjectPaths.from_file(__file__)
     cfg = load_config(paths.config)
     seed_everything(cfg.seed)
     bench = cfg.benchmark
+    solvers = args.solvers or bench.solvers
+    time_limits = args.time_limits or bench.time_limits
 
     instances: list[Instance] = []
     for name in bench.instance_sets:
         if name != "henn_waescher":
             raise ValueError(f"unknown instance set {name!r}")
         instances += load_all(paths.data / cfg.data.henn_waescher / "obsp_instances")
+    if args.orders:
+        instances = [i for i in instances if len(i.orders) in args.orders]
 
-    runs = grid(instances, bench.solvers, bench.routers, bench.time_limits, bench.seeds)
+    runs = grid(instances, solvers, bench.routers, time_limits, bench.seeds)
     log.info("running %d runs on %d instances", len(runs), len(instances))
     params = {name: dict(p) for name, p in cfg.solvers.items()}
-    results = run_grid(runs, workers=bench.workers, params=params)
+    for override in args.param:
+        key, value = override.split("=", 1)
+        solver, name = key.split(".", 1)
+        params.setdefault(solver, {})[name] = type(params.get(solver, {}).get(name, 0.0))(
+            float(value)
+        )
+    results = run_grid(runs, workers=args.workers or bench.workers, params=params)
     summary = summarise(results)
 
-    write_table(results, paths.outputs / "runs.parquet")
-    save_json(
-        {"grid": dict(bench), "summary": summary.to_dict(orient="records")},
-        paths.outputs / "metrics.json",
-    )
+    write_table(results, paths.outputs / args.output)
+    if args.output == "runs.parquet":
+        save_json(
+            {"grid": dict(bench), "summary": summary.to_dict(orient="records")},
+            paths.outputs / "metrics.json",
+        )
     log.info("results\n%s", summary.to_markdown(index=False))
 
 

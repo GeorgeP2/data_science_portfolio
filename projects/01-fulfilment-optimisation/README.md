@@ -57,8 +57,7 @@ outside the layout) get 422 with a message.
 
 ## Results
 
-_Interim: one 1 s budget on the 96 Henn & Wäscher instances. The Pareto chart over budgets and the
-comparison with published values are still to come._
+_Interim: the Pareto chart over budgets is still to come._
 
 | Solver | Distance saved vs FCFS (S-shape) | (largest gap) | Solve time p50 / p95 |
 |--------|---------------------------------:|--------------:|---------------------:|
@@ -70,6 +69,22 @@ comparison with published values are still to come._
 
 Mean over 96 instances per routing policy, on a laptop CPU. ALNS and CP-SAT are never worse than
 savings on any instance; seed is worse than FCFS on 4.
+
+**Against published results.** No per-instance distances are published for these instances, so
+the check is relative: each solver's improvement over C&W(ii) savings, per class, against Henn &
+Wäscher's best method (ABHC*, within 0.1–1.4% of optimal) on their instances from the same
+generator. The tolerance, set before the per-class results were computed, is 1 percentage point
+below theirs. ALNS is within it on **12 of 12** shared classes at 10 s and at 60 s, but on only 4
+of 12 at 1 s: larger instances need more iterations
+([full table](../../docs/projects/p1-fulfilment-optimisation/results/published_comparison.md)).
+With S-shape routing, ALNS improves on savings by 1–3 points *more* than ABHC*, which says more
+about the baseline or the instance sample than about ALNS beating a near-optimal method; the
+relative measure can't separate small differences.
+
+The published per-instance values are tardiness, not distance. Reproducing the published EDD
+tardiness didn't work: our values are 0.3–0.6× theirs, although our single-order processing
+times match the generator that produced the instances' due dates (R² 0.994). What was tried is
+in [`references/README.md`](references/README.md).
 
 **Service latency** (ALNS, requests of 10–300 orders, server-side time from the `Server-Timing`
 header): with a 50 ms budget, p99 is 22.7 ms on the laptop, since the solver stops 30 ms early to
@@ -86,6 +101,9 @@ Interim, from the 1 s results above:
 
 - **Savings captures most of the gain.** It saves 21–24% in tens of milliseconds; ALNS adds
   another 2–4 points with a full second.
+- **ALNS needs more than 1 s on 60+ orders to match published quality.** At 10 s it is within
+  1 point of the best published method on every shared class. The largest-gap router is 4.5×
+  slower per call than S-shape, so it gets fewer iterations per second.
 - **CP-SAT doesn't beat ALNS at 1 s.** Half the budget goes on building its pool, which costs more
   than recombining tours gains back. It proves optimality over its pool on 71% of 20-order
   instances, but almost never at 40 orders or more.
