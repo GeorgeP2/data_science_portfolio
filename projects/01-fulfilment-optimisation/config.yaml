@@ -24,11 +24,18 @@ solvers:
     reaction: 0.1
     scores: [33, 9, 13]  # new best, improved current, accepted worse
     cache_size: 200000  # batch-cost cache entries before it is cleared
+  cp_sat:  # set partitioning over a candidate pool; see solvers/cp_sat.py
+    pool_fraction: 0.5  # share of the budget ALNS spends building the pool
+    pool_iterations: 5000  # ALNS iteration cap for the pool (bounds it with no deadline)
+    enumerate_up_to: 12  # instances with at most this many orders get every feasible subset
+    workers: 4  # CP-SAT search workers
+    cost_scale: 1000  # distances x this, rounded, for CP-SAT's integer objective
+    deadline_margin: 0.05  # seconds held back from CP-SAT's time limit (covers post-solve work)
 
 # Grid for `python -m fulfilment_optimisation.benchmark`: every combination is one run.
 benchmark:
   instance_sets: [henn_waescher]
-  solvers: [fcfs, seed, savings, alns]
+  solvers: [fcfs, seed, savings, alns, cp_sat]
   routers: [s_shape, largest_gap]
   time_limits: [1.0]  # seconds
   seeds: [0]

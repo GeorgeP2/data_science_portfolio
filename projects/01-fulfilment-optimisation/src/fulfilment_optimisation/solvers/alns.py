@@ -106,6 +106,21 @@ class ALNS:
         deadline: Deadline,
         incumbent: Incumbent | None = None,
     ) -> Solution:
+        return self.search(instance, router, deadline, incumbent)
+
+    def search(
+        self,
+        instance: Instance,
+        router: Router,
+        deadline: Deadline,
+        incumbent: Incumbent | None = None,
+        visited: set[frozenset[int]] | None = None,
+    ) -> Solution:
+        """``solve``, also adding every candidate solution's batches to ``visited``.
+
+        Batches are sets of order indices (positions in ``instance.orders``). CP-SAT uses them as
+        its pool of candidate batches.
+        """
         start = time.perf_counter()
         rng = random.Random(self.seed)
         n = len(instance.orders)
@@ -128,6 +143,8 @@ class ALNS:
         if n < 2 or deadline.expired():
             return initial
         current: Batches = [frozenset(index[o.id] for o in b.orders) for b in initial.batches]
+        if visited is not None:
+            visited.update(current)
         current_cost = sum(cost(b) for b in current)
         best, best_cost = current, current_cost
 
@@ -236,6 +253,8 @@ class ALNS:
             kept = [b - gone for b in current]
             candidate = repair([b for b in kept if b], removed, repairs[r])
             candidate_cost = sum(cost(b) for b in candidate)
+            if visited is not None:
+                visited.update(candidate)
 
             score = 0.0
             if candidate_cost < best_cost - 1e-9:
