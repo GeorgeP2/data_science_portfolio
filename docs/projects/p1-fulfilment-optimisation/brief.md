@@ -36,7 +36,8 @@ Most optimisation portfolios solve toy TSPs. This one:
 - A solver interface with 4 implementations: greedy FCFS (first-come-first-served) baseline, seed-and-savings heuristic, OR-Tools CP-SAT, and my own local search (e.g. ALNS). Routing covers S-shape, largest-gap and optimal routing per batch.
 - A benchmark harness that runs every solver × instance with a time limit and reports gap to the best known solution, distance saved vs baseline and p50/p95 solve time.
 - A FastAPI service: `POST /batch` takes orders and returns batches and routes. It has a **latency budget parameter** and falls back to the best solution found so far (or to greedy) when the budget runs out.
-- A Dockerfile, deployment to Cloud Run, and a load test showing p95 latency under budget.
+- A Dockerfile, deployment to AWS Lambda (container image behind a function URL), and a load test
+  showing p95 latency under budget.
 
 **Stretch**
 - A discrete-event simulation (SimPy) of a full shift with dynamic arrivals, comparing batching every N minutes with batching every M orders.
@@ -66,7 +67,7 @@ Most optimisation portfolios solve toy TSPs. This one:
 
 - [ ] `docker run` + one `curl` reproduces a batching result
 - [ ] Benchmark table reproduces the published instance results within a stated tolerance
-- [ ] Live Cloud Run endpoint with a documented p95 latency
+- [ ] Live AWS Lambda endpoint with a documented p95 latency
 - [ ] README leads with the Pareto chart
 
 ## Phase 2: open warehouse simulator (~10 weeks, optional)
