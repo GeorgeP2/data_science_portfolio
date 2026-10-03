@@ -21,7 +21,10 @@ it's returned if CP-SAT doesn't beat it, so the result is never worse than the w
 
 **Anytime.** A solution callback offers every improving solution to the incumbent. CP-SAT's time
 limit is set to the deadline minus ``deadline_margin``, with a timer as a backstop, because the
-limit isn't hard when the CPU is contended. ``finished`` is True only when CP-SAT proves
+limit isn't hard when the CPU is contended. Even so, at long budgets (5-10 s, pools of ~16k
+batches) CP-SAT occasionally keeps searching for up to ~1 s after both: 10 of 1,344 runs in the
+Pareto sweep. Its search log showed nothing unusual, and the service is unaffected because the
+runner returns the incumbent at the deadline. ``finished`` is True only when CP-SAT proves
 optimality over the pool.
 """
 

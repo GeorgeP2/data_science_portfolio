@@ -37,7 +37,7 @@ solvers:
 benchmark:
   instance_sets: [henn_waescher]
   solvers: [fcfs, seed, savings, alns, cp_sat]
-  routers: [s_shape, largest_gap]
+  routers: [s_shape, largest_gap, optimal]
   time_limits: [1.0]  # seconds
   seeds: [0]
   workers: 4
