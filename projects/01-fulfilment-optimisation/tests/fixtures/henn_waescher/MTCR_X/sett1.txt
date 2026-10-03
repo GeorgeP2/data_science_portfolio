@@ -1,0 +1,12 @@
+no_aisles_: 10
+no_cells__: 45
+cell_lengt: 1
+cell_width: 1.5
+aisle_widt: 2
+dis_ais_wa: 1
+routing___: l
+no_orders_: 3
+MTCR______: 0.5
+m_no_a_p_b: 45
+6328,15838,29504,28455,16708,
+31016,21531,4047,23792,22970,
