@@ -24,9 +24,9 @@ Most optimisation portfolios solve toy TSPs. This one:
 
 | Source | What | Access | Licence | Use |
 |--------|------|--------|---------|-----|
-| [KIT Manual Warehouse Order Picking benchmarks](https://radar.kit.edu/radar/en/dataset/mwsv59v8sk9sqaan) (Barlang, Lehmann, Furmans, 2026) | 2 GB JSON: layouts, orders per shift, lines per order, arrival randomness, due dates and storage policies across 200 designed configurations | Open download | CC BY 4.0 | Calibrate the generator's parameter ranges; stress scenarios |
-| [Henn & Wäscher (2012) batching instances](https://grafo.etsii.urjc.es/optsicom/obsp.html) | 96 instances: 10 aisles × 90 locations, 40–100 orders | Open download (`obsp_instances.zip`) | *Unverified*: don't redistribute; download via script | External benchmark |
-| [Arbex Valle et al. Foodmart instances](https://homepages.dcc.ufmg.br/~arbex/orderpicking.html) | 8/16-aisle layouts, 1,560 SKUs, 5–5,000 orders, plus a layout generator | Open download | *Unverified*: don't redistribute | External benchmark + realistic SKU/order-size distributions |
+| [KIT Manual Warehouse Order Picking benchmarks](https://radar.kit.edu/radar/en/dataset/mwsv59v8sk9sqaan) (Barlang, Lehmann, Furmans, 2026) | 2 GB JSON: layouts, orders per shift, lines per order, arrival randomness, due dates and storage policies across 132 designed parameter sets × 100 replications | Open download | CC BY 4.0 | Calibrate the generator's parameter ranges; stress scenarios |
+| [Henn & Wäscher (2012) batching instances](https://grafo.etsii.urjc.es/optsicom/obsp.html) | 96 instances: 10 aisles × 90 locations, 20–80 orders, picker capacity 45 or 75 items, due dates | Open download (`obsp_instances.zip`) | Not stated: don't redistribute; download via script | External benchmark |
+| [Arbex Valle et al. Foodmart instances](https://homepages.dcc.ufmg.br/~arbex/orderpicking.html) | 8/16-aisle layouts, 1,560 SKUs, 5–5,000 orders, plus a layout generator | Open download | Not stated: don't redistribute | External benchmark + realistic SKU/order-size distributions |
 | **Own generator** | Parameterised warehouse + order stream | In repo | MIT | Everything else |
 
 ## Scope
