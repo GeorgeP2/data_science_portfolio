@@ -6,7 +6,7 @@ contract can stay stable while the solvers' internals change.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -99,9 +99,14 @@ class BatchRequest(BaseModel):
         "henn_waescher", description="A layout, or the id of a preset layout"
     )
     capacity: int = Field(ge=1, description="Items a picker can carry in one batch")
-    solver: str = Field("fcfs", json_schema_extra={"enum": list(SOLVERS)})
+    solver: str = Field("alns", json_schema_extra={"enum": list(SOLVERS)})
     router: str = Field("s_shape", json_schema_extra={"enum": list(ROUTERS)})
-    budget_ms: int = Field(1000, ge=1, description="Time the solver may use, in milliseconds")
+    budget_ms: int = Field(
+        1000,
+        ge=1,
+        description="Hard limit on server-side response time, in milliseconds. The best solution"
+        " found within it is returned; FCFS if nothing better is ready.",
+    )
 
     @field_validator("orders")
     @classmethod
@@ -160,36 +165,49 @@ class BatchResponse(BaseModel):
     status: Literal["finished", "deadline"] = Field(
         description="'deadline' if the solver was stopped by the budget"
     )
-    solver: str
+    solver: str = Field(description="Solver whose batches are returned: 'fcfs' on fallback")
     router: str
-    fallback_used: bool
+    fallback_used: bool = Field(
+        description="True if FCFS was returned instead of the requested solver's result"
+    )
     total_distance: float
     solve_time_ms: float
     batches: list[BatchOut]
 
-    @classmethod
-    def from_solution(
-        cls, solution: Solution, solver: str, router: str, fallback_used: bool = False
-    ) -> BatchResponse:
-        return cls(
-            status="finished" if solution.finished else "deadline",
-            solver=solver,
-            router=router,
-            fallback_used=fallback_used,
-            total_distance=solution.total_distance,
-            solve_time_ms=1000 * solution.solve_time,
-            batches=[
-                BatchOut(
-                    order_ids=[order.id for order in batch.orders],
-                    items=batch.size,
-                    route=RouteOut(
-                        stops=[
-                            LocationOut(aisle=s.aisle, position=s.position, side=s.side)
-                            for s in route.stops
-                        ],
-                        length=route.length,
-                    ),
-                )
-                for batch, route in zip(solution.batches, solution.routes, strict=True)
-            ],
-        )
+
+def response_payload(
+    solution: Solution,
+    solver: str,
+    router: str,
+    fallback_used: bool = False,
+    timed_out: bool = False,
+) -> dict[str, Any]:
+    """The ``BatchResponse`` body as plain JSON-ready data.
+
+    Built directly rather than through the pydantic models. On a 300-order request, constructing
+    about 1,000 nested models and having FastAPI re-validate them took around 45 ms on a slow CPU,
+    longer than the response margin. ``tests/test_api.py`` checks the shape still validates
+    against ``BatchResponse``.
+    """
+    return {
+        "status": "deadline" if timed_out or not solution.finished else "finished",
+        "solver": solver,
+        "router": router,
+        "fallback_used": fallback_used,
+        "total_distance": solution.total_distance,
+        "solve_time_ms": 1000 * solution.solve_time,
+        "batches": [
+            {
+                "order_ids": [order.id for order in batch.orders],
+                "items": batch.size,
+                "route": {
+                    "stops": [
+                        {"aisle": s.aisle, "position": s.position, "side": s.side}
+                        for s in route.stops
+                    ],
+                    "length": route.length,
+                },
+            }
+            for batch, route in zip(solution.batches, solution.routes, strict=True)
+        ],
+    }

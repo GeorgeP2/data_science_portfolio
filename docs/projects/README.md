@@ -44,8 +44,9 @@ Projects are numbered in build order.
 A second set of briefs makes one claim: machine learning and operations research work together on
 real logistics problems. Three flagship projects prove that claim; one range project shows depth
 outside it. Some related ideas became extensions of existing projects instead: the warehouse
-simulator is phase 2 of Project 1, the serving case study is phase 2 of Project 10, and the
-late-deliveries causal study is a stretch goal in Project 3.
+simulator is phase 2 of Project 1 and graph-defined layouts are its phase 3, the serving case
+study is phase 2 of Project 10, and the late-deliveries causal study is a stretch goal in
+Project 3.
 
 | # | Project | Role | Effort (part-time) | Headline artefact |
 |---|---------|------|--------------------|-------------------|
@@ -59,7 +60,7 @@ late-deliveries causal study is a stretch goal in Project 3.
 Projects are numbered in build order: 1 → 8, picking 6 **or** 7, with 8 alongside them. Then the
 ML × OR track: 9 → 10 → 11. Project 9 builds on 2's agent and eval work, and together 9 and 10 tell
 one story: learned guidance inside exact optimisation. Project 11 reuses Project 4's data. P1
-phase 2, P10 phase 2 and Project 12 are optional.
+phases 2 and 3, P10 phase 2 and Project 12 are optional.
 
 ## Ground rules
 

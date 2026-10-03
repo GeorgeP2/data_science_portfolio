@@ -4,7 +4,9 @@ Follows the ALNS framework of Ropke & Pisinger (2006), adapted from vehicle rout
 Each iteration removes some orders from the current solution (destroy), puts them back (repair)
 and accepts or rejects the result with simulated annealing.
 
-- **Start:** the Clarke & Wright savings solution (``solvers.savings``).
+- **Start:** the Clarke & Wright savings solution (``solvers.savings``), or FCFS if that is
+  shorter. On large requests with short budgets, savings can be cut off before it has merged
+  much.
 - **Destroy:** ``random`` removes uniformly chosen orders. ``worst`` removes the orders whose
   removal shortens their batch's tour most. ``related`` removes a random order and the orders
   whose aisle sets overlap it most (Jaccard similarity), a batching version of Shaw removal.
@@ -39,10 +41,12 @@ import math
 import random
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 
 from fulfilment_optimisation.domain import Batch, Instance, Location
 from fulfilment_optimisation.routing import Router
 from fulfilment_optimisation.solvers.base import Deadline, Incumbent, Solution, build_solution
+from fulfilment_optimisation.solvers.fcfs import FCFS
 from fulfilment_optimisation.solvers.savings import Savings
 
 Batches = list[frozenset[int]]  # each batch is a set of order indices (arrival positions)
@@ -79,6 +83,7 @@ class ALNS:
         max_iterations: int = 20_000,
         remove_min: int = 2,
         remove_max_fraction: float = 0.3,
+        remove_max: int = 30,
         determinism: float = 4.0,
         start_worse_accept: float = 0.05,
         cooling: float = 0.9995,
@@ -91,6 +96,7 @@ class ALNS:
         self.max_iterations = max_iterations
         self.remove_min = remove_min
         self.remove_max_fraction = remove_max_fraction
+        self.remove_max = remove_max
         self.determinism = determinism
         self.start_worse_accept = start_worse_accept
         self.cooling = cooling
@@ -139,8 +145,14 @@ class ALNS:
                 finished,
             )
 
-        initial = Savings().solve(instance, router, deadline, incumbent)
-        if n < 2 or deadline.expired():
+        initial = min(
+            Savings().solve(instance, router, deadline, incumbent),
+            FCFS().solve(instance, router, deadline, incumbent),
+            key=lambda s: s.total_distance,
+        )
+        if deadline.expired():
+            return replace(initial, finished=False)
+        if n < 2:
             return initial
         current: Batches = [frozenset(index[o.id] for o in b.orders) for b in initial.batches]
         if visited is not None:
@@ -174,7 +186,8 @@ class ALNS:
 
         # --- repair operators: insert every removed order, best-first by a priority rule ---
 
-        def repair(batches: Batches, removed: list[int], regret: bool) -> Batches:
+        def repair(batches: Batches, removed: list[int], regret: bool) -> Batches | None:
+            """The repaired solution, or None if the deadline passes part-way through."""
             batches = list(batches)
             loads = [sum(sizes[i] for i in b) for b in batches]
             costs = [cost(b) for b in batches]
@@ -195,6 +208,9 @@ class ALNS:
             alone = {i: cost(frozenset((i,))) for i in removed}
 
             while table:
+                # Large repairs take tens of ms on slow machines; don't overrun the deadline.
+                if deadline.expired():
+                    return None
                 # Lowest key wins: (-regret, cheapest insertion, order) or (cheapest, 0, order).
                 choice: tuple[tuple[float, float, int], int] | None = None
                 for i, row in table.items():
@@ -238,7 +254,7 @@ class ALNS:
         d_uses, r_uses = [0] * len(destroys), [0] * len(repairs)
 
         temperature = -self.start_worse_accept * current_cost / math.log(0.5)
-        q_max = max(self.remove_min, int(self.remove_max_fraction * n))
+        q_max = max(self.remove_min, min(self.remove_max, int(self.remove_max_fraction * n)))
         finished = True
         for iteration in range(1, self.max_iterations + 1):
             if deadline.expired():
@@ -251,7 +267,11 @@ class ALNS:
             removed = destroys[d](current, q)
             gone = set(removed)
             kept = [b - gone for b in current]
-            candidate = repair([b for b in kept if b], removed, repairs[r])
+            repaired = repair([b for b in kept if b], removed, repairs[r])
+            if repaired is None:
+                finished = False
+                break
+            candidate = repaired
             candidate_cost = sum(cost(b) for b in candidate)
             if visited is not None:
                 visited.update(candidate)

@@ -50,19 +50,33 @@ class LargestGap:
     name = "largest_gap"
 
     def length(self, locations: Iterable[Location], layout: Layout) -> float:
-        aisles = picks_by_aisle(locations)
-        if not aisles:
+        # The solvers' hot path, so it works on integer positions per aisle and only measures
+        # each middle aisle's largest gap, without building the split (``route`` does that).
+        positions: dict[int, list[int]] = {}
+        for loc in locations:
+            in_aisle = positions.get(loc.aisle)
+            if in_aisle is None:
+                positions[loc.aisle] = [loc.position]
+            else:
+                in_aisle.append(loc.position)
+        if not positions:
             return 0.0
-        last = max(aisles)
+        first, last = min(positions), max(positions)
         total = 2 * layout.depot_offset + 2 * layout.x(last)
-        if len(aisles) == 1:
-            deepest = max(loc.position for loc in aisles[last])
-            return total + 2 * layout.y(deepest)
-        middle = list(aisles.values())[1:-1]
+        if len(positions) == 1:
+            return total + 2 * layout.y(max(positions[last]))
+
+        step, end, top = layout.location_length, layout.end_offset, layout.n_positions - 1
         total += 2 * layout.aisle_length
-        for picks in middle:
-            gap = split_at_largest_gap(picks, layout)[2]
-            total += 2 * (layout.aisle_length - gap)
+        for aisle, in_aisle in positions.items():
+            if aisle in (first, last):
+                continue
+            in_aisle.sort()
+            # Gaps to the front and back cross aisles, then between neighbouring picks.
+            widest = max(in_aisle[0], top - in_aisle[-1]) * step + end
+            for a, b in itertools.pairwise(in_aisle):
+                widest = max(widest, (b - a) * step)
+            total += 2 * (layout.aisle_length - widest)
         return total
 
     def route(self, batch: Batch, layout: Layout) -> Route:

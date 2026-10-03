@@ -117,3 +117,11 @@ def test_openapi_has_examples(client):
 def test_example_file_matches_documented_request():
     path = ProjectPaths.from_file(__file__).root / "examples" / "batch_request.json"
     assert json.loads(path.read_text()) == _EXAMPLE_REQUEST
+
+
+@pytest.mark.parametrize("solver", ["fcfs", "alns"])
+def test_response_matches_the_documented_model(client, solver):
+    from fulfilment_optimisation.api.schemas import BatchResponse
+
+    body = client.post("/batch", json=request(solver=solver, budget_ms=200)).json()
+    assert BatchResponse.model_validate(body).model_dump() == body

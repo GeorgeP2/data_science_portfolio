@@ -22,7 +22,9 @@ make format         # ruff fix + format
 make new-project name="Title" category=ml   # scaffold from projects/_template
 ```
 
-Use `.venv/bin/...` for tools. Optional dependency extras: `ml`, `dl`, `nlp`, `llm`, `tracking`, `app`, `opt`.
+Use `.venv/bin/...` for tools. Optional dependency extras: `ml`, `dl`, `nlp`, `llm`, `tracking`, `app`, `opt`,
+`service`. CI installs `dev,app,opt`; `make setup` doesn't, so without `make setup-all` the API and
+CP-SAT tests skip locally instead of failing.
 
 ## Non-obvious details
 

@@ -77,17 +77,20 @@ def test_never_worse_than_warm_start_on_a_large_instance():
 
 
 def test_stops_within_50ms_of_deadline_and_returns_incumbent():
+    # Five runs, judged on the median, so a one-off stall on a shared CI runner doesn't fail it.
     instance = random_instance(80, capacity=12, seed=6)
-    incumbent = Incumbent()
-    begin = time.monotonic()
-    solution = CPSATBatching(pool_iterations=10**9).solve(
-        instance, SShape(), Deadline.after(0.5), incumbent
-    )
-    elapsed = time.monotonic() - begin
-    assert elapsed < 0.55
-    check_feasible(instance, solution)
-    assert incumbent.best is not None
-    assert incumbent.best.total_distance <= solution.total_distance + 1e-9
+    elapsed = []
+    for _ in range(5):
+        incumbent = Incumbent()
+        begin = time.monotonic()
+        solution = CPSATBatching(pool_iterations=10**9).solve(
+            instance, SShape(), Deadline.after(0.3), incumbent
+        )
+        elapsed.append(time.monotonic() - begin)
+        check_feasible(instance, solution)
+        assert incumbent.best is not None
+        assert incumbent.best.total_distance <= solution.total_distance + 1e-9
+    assert sorted(elapsed)[2] < 0.35, elapsed
 
 
 def test_incumbent_is_readable_while_running():

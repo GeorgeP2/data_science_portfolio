@@ -2,20 +2,41 @@
 
     PYTHONPATH=src uvicorn fulfilment_optimisation.api.app:app
 
-Limits (order count, budget) and preset layouts come from the ``api`` section of
+``budget_ms`` is a hard limit on server-side response time: the solver runs under it and the best
+solution found in time is returned, with FCFS as the fallback (see ``api.runner``). Limits, the
+response margin, worker threads and preset layouts come from the ``api`` section of
 ``config.yaml``. Errors return ``{"detail": "<message>"}``: 413 when a request has more orders
 than the limit, 422 when it can't be solved as given (an order over capacity, a pick outside the
 layout, an unknown layout id or a budget over the limit).
+
+With ``api.gc_after_response`` (the default), automatic garbage collection is off while the server
+runs, and a collection runs after each response has been sent instead. A full collection during a
+request measured 25-35 ms on a slow CPU, enough to break the budget. Objects alive at startup are
+frozen, so each collection only scans what requests created (about 2 ms). With several requests in
+flight, a collection still briefly pauses the others; on Lambda there is one request per instance.
 """
 
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+import gc
+import time
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 
-from fulfilment_optimisation.api.schemas import BatchRequest, BatchResponse, LayoutIn
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
+from starlette.background import BackgroundTask
+
+from fulfilment_optimisation.api.runner import run_with_budget
+from fulfilment_optimisation.api.schemas import (
+    BatchRequest,
+    BatchResponse,
+    LayoutIn,
+    response_payload,
+)
 from fulfilment_optimisation.domain import Layout
-from fulfilment_optimisation.registry import ROUTERS, SOLVERS
-from fulfilment_optimisation.solvers import Deadline
+from fulfilment_optimisation.registry import ROUTERS, SOLVERS, SolverFactory
 from portfolio import ProjectPaths, load_config
 from portfolio.config import Config
 
@@ -25,15 +46,33 @@ _ERRORS = {
 }
 
 
-def create_app(cfg: Config | None = None) -> FastAPI:
+def create_app(
+    cfg: Config | None = None, solvers: Mapping[str, SolverFactory] = SOLVERS
+) -> FastAPI:
+    """``solvers`` is overridable so tests can add deliberately slow or failing solvers."""
     cfg = cfg or load_config(ProjectPaths.from_file(__file__).config)
     limits = cfg.api
     presets = {name: Layout(**spec) for name, spec in limits.layouts.items()}
+    executor = ThreadPoolExecutor(max_workers=limits.solver_threads, thread_name_prefix="solver")
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        if limits.gc_after_response:
+            gc.collect()
+            gc.freeze()
+            gc.disable()
+        try:
+            yield
+        finally:
+            if limits.gc_after_response:
+                gc.enable()
+                gc.unfreeze()
 
     app = FastAPI(
         title="Fulfilment Optimisation Service",
         description="Order batching and picker routing for single-block warehouses.",
         version="0.1.0",
+        lifespan=lifespan,
     )
 
     def resolve_layout(layout: LayoutIn | str) -> Layout:
@@ -43,12 +82,25 @@ def create_app(cfg: Config | None = None) -> FastAPI:
             raise HTTPException(422, f"unknown layout {layout!r}; choose from {sorted(presets)}")
         return presets[layout]
 
+    @app.middleware("http")
+    async def timing(raw: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+        # Stamped before the body is read, so the latency budget covers parsing and validation.
+        raw.state.received = time.monotonic()
+        response = await call_next(raw)
+        elapsed_ms = 1000 * (time.monotonic() - raw.state.received)
+        response.headers["Server-Timing"] = f"total;dur={elapsed_ms:.1f}"
+        if not gc.isenabled():
+            response.background = BackgroundTask(gc.collect)  # runs after the response is sent
+        return response
+
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.post("/batch", responses=_ERRORS)  # type: ignore[arg-type]
-    def batch(request: BatchRequest) -> BatchResponse:
+    # Returns a JSONResponse built from plain data (see ``response_payload``); ``response_model``
+    # still documents the shape in OpenAPI.
+    @app.post("/batch", response_model=BatchResponse, responses=_ERRORS)  # type: ignore[arg-type]
+    def batch(request: BatchRequest, raw: Request) -> JSONResponse:
         if len(request.orders) > limits.max_orders:
             raise HTTPException(
                 413, f"{len(request.orders)} orders; the limit is {limits.max_orders} per request"
@@ -62,10 +114,25 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         except ValueError as e:
             raise HTTPException(422, str(e).removeprefix("request: ")) from e
 
-        solver = SOLVERS[request.solver](cfg.seed, cfg.solvers.get(request.solver, {}))
-        router = ROUTERS[request.router]()
-        solution = solver.solve(instance, router, Deadline.after(request.budget_ms / 1000))
-        return BatchResponse.from_solution(solution, request.solver, request.router)
+        solver = solvers[request.solver](cfg.seed, cfg.solvers.get(request.solver, {}))
+        result = run_with_budget(
+            instance,
+            solver,
+            ROUTERS[request.router](),
+            budget_s=request.budget_ms / 1000,
+            margin_s=limits.response_margin_ms / 1000,
+            executor=executor,
+            started_at=raw.state.received,
+        )
+        return JSONResponse(
+            response_payload(
+                result.solution,
+                result.solver,
+                request.router,
+                fallback_used=result.fallback_used,
+                timed_out=result.timed_out,
+            )
+        )
 
     return app
 
