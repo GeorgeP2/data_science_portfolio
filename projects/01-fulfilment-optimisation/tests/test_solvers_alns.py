@@ -78,13 +78,17 @@ def test_incumbent_is_readable_while_running():
     incumbent = Incumbent()
     thread = threading.Thread(
         target=ALNS(seed=0, max_iterations=10**9).solve,
-        args=(instance, SShape(), Deadline.after(0.5), incumbent),
+        args=(instance, SShape(), Deadline.after(1.0), incumbent),
     )
     thread.start()
-    time.sleep(0.1)
+    # Poll rather than sleep a fixed time: how soon the first solution lands depends on the machine.
+    while incumbent.best is None and thread.is_alive():
+        time.sleep(0.005)
     mid_run = incumbent.best
+    still_running = thread.is_alive()
     thread.join()
     assert mid_run is not None
+    assert still_running
     check_feasible(instance, mid_run)
     assert incumbent.best is not None
     assert incumbent.best.total_distance <= mid_run.total_distance
