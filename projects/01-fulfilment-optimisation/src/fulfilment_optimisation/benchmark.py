@@ -14,7 +14,8 @@ one being timed.
 from __future__ import annotations
 
 import itertools
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Any
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
@@ -22,8 +23,8 @@ import pandas as pd
 
 from fulfilment_optimisation.domain import Instance
 from fulfilment_optimisation.parsers.henn_waescher import load_all
-from fulfilment_optimisation.registry import ROUTERS, SOLVERS
-from fulfilment_optimisation.solvers import Deadline, Solver, check_feasible
+from fulfilment_optimisation.registry import ROUTERS, SOLVERS, SolverFactory
+from fulfilment_optimisation.solvers import Deadline, check_feasible
 from portfolio import ProjectPaths, get_logger, load_config, seed_everything
 from portfolio.io import save_json, write_table
 
@@ -56,8 +57,12 @@ def grid(
     ]
 
 
-def run_one(run: Run, solvers: dict[str, Callable[[int], Solver]] = SOLVERS) -> dict:
-    solver = solvers[run.solver](run.seed)
+def run_one(
+    run: Run,
+    solvers: Mapping[str, SolverFactory] = SOLVERS,
+    params: Mapping[str, Mapping[str, Any]] | None = None,
+) -> dict:
+    solver = solvers[run.solver](run.seed, (params or {}).get(run.solver, {}))
     router = ROUTERS[run.router]()
     solution = solver.solve(run.instance, router, Deadline.after(run.time_limit))
     check_feasible(run.instance, solution)
@@ -79,17 +84,24 @@ def run_one(run: Run, solvers: dict[str, Callable[[int], Solver]] = SOLVERS) -> 
 def run_grid(
     runs: Sequence[Run],
     workers: int = 1,
-    solvers: dict[str, Callable[[int], Solver]] = SOLVERS,
+    solvers: Mapping[str, SolverFactory] = SOLVERS,
+    params: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> pd.DataFrame:
     """Execute ``runs`` and return one row per run, in a stable order.
+
+    ``params`` maps a solver name to its keyword arguments (the ``solvers`` section of config.yaml).
 
     ``workers=1`` runs in this process, which lets tests pass solvers that can't be pickled.
     """
     if workers == 1:
-        rows = [run_one(run, solvers) for run in runs]
+        rows = [run_one(run, solvers, params) for run in runs]
     else:
         with ProcessPoolExecutor(max_workers=workers) as pool:
-            rows = list(pool.map(run_one, runs, itertools.repeat(solvers), chunksize=1))
+            rows = list(
+                pool.map(
+                    run_one, runs, itertools.repeat(solvers), itertools.repeat(params), chunksize=1
+                )
+            )
     keys = ["instance", "solver", "router", "time_limit", "seed"]
     return pd.DataFrame(rows).sort_values(keys, ignore_index=True)
 
@@ -130,7 +142,8 @@ def main() -> None:
 
     runs = grid(instances, bench.solvers, bench.routers, bench.time_limits, bench.seeds)
     log.info("running %d runs on %d instances", len(runs), len(instances))
-    results = run_grid(runs, workers=bench.workers)
+    params = {name: dict(p) for name, p in cfg.solvers.items()}
+    results = run_grid(runs, workers=bench.workers, params=params)
     summary = summarise(results)
 
     write_table(results, paths.outputs / "runs.parquet")

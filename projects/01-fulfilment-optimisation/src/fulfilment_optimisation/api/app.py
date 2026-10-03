@@ -62,7 +62,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         except ValueError as e:
             raise HTTPException(422, str(e).removeprefix("request: ")) from e
 
-        solver = SOLVERS[request.solver](cfg.seed)
+        solver = SOLVERS[request.solver](cfg.seed, cfg.solvers.get(request.solver, {}))
         router = ROUTERS[request.router]()
         solution = solver.solve(instance, router, Deadline.after(request.budget_ms / 1000))
         return BatchResponse.from_solution(solution, request.solver, request.router)

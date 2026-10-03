@@ -8,12 +8,16 @@ data:
   foodmart: raw/foodmart
   processed: processed
 
-solvers: {}
+# Per-solver settings, passed to the solver's constructor.
+solvers:
+  seed:
+    seed_rule: most_aisles  # de Koster et al. (1999)
+    addition_rule: fewest_new_aisles
 
 # Grid for `python -m fulfilment_optimisation.benchmark`: every combination is one run.
 benchmark:
   instance_sets: [henn_waescher]
-  solvers: [fcfs]
+  solvers: [fcfs, seed, savings]
   routers: [s_shape, largest_gap]
   time_limits: [1.0]  # seconds
   seeds: [0]

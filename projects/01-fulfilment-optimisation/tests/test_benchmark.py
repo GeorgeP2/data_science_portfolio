@@ -28,7 +28,7 @@ class OnePerBatch:
         return build_solution(batches, router, instance.layout, time.perf_counter() - start, True)
 
 
-SMOKE_SOLVERS = {**SOLVERS, "one_per_batch": lambda seed: OnePerBatch()}
+SMOKE_SOLVERS = {**SOLVERS, "one_per_batch": lambda seed, params: OnePerBatch()}
 
 
 @pytest.fixture(scope="module")
