@@ -75,7 +75,7 @@ phase 2, P10 phase 2 and Project 12 are optional.
 - A **"Design decisions & trade-offs"** section.
 - A write-up, plus a demo or plot someone can grasp in 30 seconds.
 - Tests, a CI badge, a Dockerfile and a one-command local run.
-- A live demo where it's cheap to host (Cloud Run, Streamlit, or a Hugging Face Space).
+- A live demo where it's cheap to host (AWS Lambda, Streamlit, or a Hugging Face Space).
 - A `data/README.md` (in the code folder) with a download script, licence and attribution. Raw data is never committed.
 
 ## Before starting any project

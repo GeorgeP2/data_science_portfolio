@@ -50,7 +50,7 @@ uses partial pooling across household groups. Both are tracked, monitored and se
   - Evidently drift reports. On LCL, replay time through 2013 and show the ToU trial triggering drift alerts.
   - A FastAPI `/forecast` endpoint and a Streamlit dashboard (forecast fan chart, calibration plot, drift status).
 
-**Stretch:** Terraform for Cloud Run + scheduled job; a hierarchical reconciliation check (households sum sensibly to group totals).
+**Stretch:** Terraform for an AWS Lambda service + EventBridge scheduled job; a hierarchical reconciliation check (households sum sensibly to group totals).
 
 **Out of scope:** real-time intraday trading forecasts; generation forecasting.
 
