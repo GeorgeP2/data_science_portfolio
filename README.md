@@ -71,6 +71,14 @@ This copies the template to `projects/NN-customer-churn-prediction/`, fills in n
 to the table above. Categories: `analytics`, `stats`, `ml`, `ts`, `dl`, `cv`, `nlp`, `llm`, `recsys`,
 `mlops`, `de`. See [docs/conventions.md](docs/conventions.md) for the house rules.
 
+## How this was built
+
+I build these projects with an AI coding assistant ([Claude Code](https://claude.com/claude-code));
+some commits list it as a co-author. I choose the problems, write the briefs in
+[docs/projects/](docs/projects), set the scope and make the design calls. The assistant speeds up
+implementation, and I review, test and can explain every change. Each project's README records the
+decisions and trade-offs in my own words.
+
 ## Contact
 
 George Priestley · [CV](https://georgep2.github.io/data_science_portfolio/cv.html) · [LinkedIn](https://www.linkedin.com/in/george-priestley-93704530) · [GitHub](https://github.com/GeorgeP2)
