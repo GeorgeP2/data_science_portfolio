@@ -73,3 +73,16 @@ published:
   # sampling noise; the 95% bootstrap interval is reported alongside.
   tolerance_pp: 1.0
   bootstrap_samples: 2000
+
+# Instance generator (T18, T19). Ranges come from T17's KIT profile:
+# docs/projects/p1-fulfilment-optimisation/results/kit_profile.md (python -m ...kit_profile).
+generator:
+  layout:
+    aisles: [4, 40]  # KIT: 4 to 40 across settings (LHS design spans 5-40, OFAT adds 4)
+    locations_per_aisle: [5, 40]  # KIT: 5 to 40, independent of the aisle count (r = -0.11)
+    # KIT distances are abstract units, so the geometry is Henn & Wäscher's (FEMM 07/2010,
+    # section 6.1), keeping generated layouts comparable with the benchmark instances.
+    location_length: 1.0
+    aisle_spacing: 5.0
+    end_offset: 1.0
+    depot_offset: 1.0
