@@ -2,7 +2,9 @@
 
     PYTHONPATH=src uvicorn fulfilment_optimisation.api.app:app
 
-Limits (order count, budget) and preset layouts come from the ``api`` section of
+``budget_ms`` is a hard limit on server-side response time: the solver runs under it and the best
+solution found in time is returned, with FCFS as the fallback (see ``api.runner``). Limits, the
+response margin, worker threads and preset layouts come from the ``api`` section of
 ``config.yaml``. Errors return ``{"detail": "<message>"}``: 413 when a request has more orders
 than the limit, 422 when it can't be solved as given (an order over capacity, a pick outside the
 layout, an unknown layout id or a budget over the limit).
@@ -10,12 +12,15 @@ layout, an unknown layout id or a budget over the limit).
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
+
 from fastapi import FastAPI, HTTPException
 
+from fulfilment_optimisation.api.runner import run_with_budget
 from fulfilment_optimisation.api.schemas import BatchRequest, BatchResponse, LayoutIn
 from fulfilment_optimisation.domain import Layout
-from fulfilment_optimisation.registry import ROUTERS, SOLVERS
-from fulfilment_optimisation.solvers import Deadline
+from fulfilment_optimisation.registry import ROUTERS, SOLVERS, SolverFactory
 from portfolio import ProjectPaths, load_config
 from portfolio.config import Config
 
@@ -25,10 +30,14 @@ _ERRORS = {
 }
 
 
-def create_app(cfg: Config | None = None) -> FastAPI:
+def create_app(
+    cfg: Config | None = None, solvers: Mapping[str, SolverFactory] = SOLVERS
+) -> FastAPI:
+    """``solvers`` is overridable so tests can add deliberately slow or failing solvers."""
     cfg = cfg or load_config(ProjectPaths.from_file(__file__).config)
     limits = cfg.api
     presets = {name: Layout(**spec) for name, spec in limits.layouts.items()}
+    executor = ThreadPoolExecutor(max_workers=limits.solver_threads, thread_name_prefix="solver")
 
     app = FastAPI(
         title="Fulfilment Optimisation Service",
@@ -62,10 +71,22 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         except ValueError as e:
             raise HTTPException(422, str(e).removeprefix("request: ")) from e
 
-        solver = SOLVERS[request.solver](cfg.seed, cfg.solvers.get(request.solver, {}))
-        router = ROUTERS[request.router]()
-        solution = solver.solve(instance, router, Deadline.after(request.budget_ms / 1000))
-        return BatchResponse.from_solution(solution, request.solver, request.router)
+        solver = solvers[request.solver](cfg.seed, cfg.solvers.get(request.solver, {}))
+        result = run_with_budget(
+            instance,
+            solver,
+            ROUTERS[request.router](),
+            budget_s=request.budget_ms / 1000,
+            margin_s=limits.response_margin_ms / 1000,
+            executor=executor,
+        )
+        return BatchResponse.from_solution(
+            result.solution,
+            result.solver,
+            request.router,
+            fallback_used=result.fallback_used,
+            timed_out=result.timed_out,
+        )
 
     return app
 

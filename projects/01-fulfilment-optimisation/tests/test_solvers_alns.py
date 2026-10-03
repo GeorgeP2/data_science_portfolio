@@ -94,7 +94,7 @@ def test_incumbent_is_readable_while_running():
     assert incumbent.best.total_distance <= mid_run.total_distance
 
 
-def test_expired_deadline_returns_savings_start():
+def test_expired_deadline_returns_the_start_unfinished():
     instance = INSTANCES[1]
     solution = ALNS(seed=0).solve(instance, SShape(), Deadline.after(0))
     check_feasible(instance, solution)

@@ -10,8 +10,8 @@ This is the C&W(ii) variant of de Koster, van der Poort & Wolters (1999). C&W(i)
 order pairs once and never revisits the list, is not implemented.
 
 Ties go to the pair of batches that formed earliest, so the result depends only on the instance.
-The solver checks the deadline between merges. If it runs out, it returns the batches merged so
-far: they are always feasible, just less consolidated.
+The solver checks the deadline while costing pairs and between merges. If it runs out, it returns
+the batches merged so far: they are always feasible, just less consolidated.
 
 de Koster, M. B. M., van der Poort, E. S., Wolters, M. (1999). Efficient orderbatching methods in
 warehouses. *International Journal of Production Research* 37(7), 1479-1504.
@@ -72,10 +72,16 @@ class Savings:
             if saving >= 0:
                 heapq.heappush(heap, (-saving, min(a, b), max(a, b), m))
 
-        for a, b in itertools.combinations(groups, 2):
+        # Costing every pair is O(n^2) router calls (seconds at 500 orders), so it checks the
+        # deadline too. If it runs out, no merges happen and the singletons are returned.
+        finished = True
+        for k, (a, b) in enumerate(itertools.combinations(groups, 2)):
+            if k % 64 == 0 and deadline.expired():
+                finished = False
+                heap.clear()
+                break
             push(a, b)
 
-        finished = True
         while heap:
             if deadline.expired():
                 finished = False

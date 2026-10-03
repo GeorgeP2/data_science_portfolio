@@ -70,8 +70,8 @@ curl -s localhost:8080/batch -H 'Content-Type: application/json' \
 The response lists each batch's orders and its picker route, with the total distance. Interactive
 API docs are at <http://localhost:8080/docs>.
 
-The image is 76 MB compressed (347 MB unpacked). It contains no benchmark data: its ignore file
-lets in only the code and `config.yaml`.
+The image is 126 MB compressed (577 MB unpacked, most of it OR-Tools). It contains no benchmark
+data: its ignore file lets in only the code and `config.yaml`.
 
 ## Skills demonstrated
 

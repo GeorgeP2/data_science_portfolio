@@ -99,9 +99,14 @@ class BatchRequest(BaseModel):
         "henn_waescher", description="A layout, or the id of a preset layout"
     )
     capacity: int = Field(ge=1, description="Items a picker can carry in one batch")
-    solver: str = Field("fcfs", json_schema_extra={"enum": list(SOLVERS)})
+    solver: str = Field("alns", json_schema_extra={"enum": list(SOLVERS)})
     router: str = Field("s_shape", json_schema_extra={"enum": list(ROUTERS)})
-    budget_ms: int = Field(1000, ge=1, description="Time the solver may use, in milliseconds")
+    budget_ms: int = Field(
+        1000,
+        ge=1,
+        description="Hard limit on server-side response time, in milliseconds. The best solution"
+        " found within it is returned; FCFS if nothing better is ready.",
+    )
 
     @field_validator("orders")
     @classmethod
@@ -160,19 +165,26 @@ class BatchResponse(BaseModel):
     status: Literal["finished", "deadline"] = Field(
         description="'deadline' if the solver was stopped by the budget"
     )
-    solver: str
+    solver: str = Field(description="Solver whose batches are returned: 'fcfs' on fallback")
     router: str
-    fallback_used: bool
+    fallback_used: bool = Field(
+        description="True if FCFS was returned instead of the requested solver's result"
+    )
     total_distance: float
     solve_time_ms: float
     batches: list[BatchOut]
 
     @classmethod
     def from_solution(
-        cls, solution: Solution, solver: str, router: str, fallback_used: bool = False
+        cls,
+        solution: Solution,
+        solver: str,
+        router: str,
+        fallback_used: bool = False,
+        timed_out: bool = False,
     ) -> BatchResponse:
         return cls(
-            status="finished" if solution.finished else "deadline",
+            status="deadline" if timed_out or not solution.finished else "finished",
             solver=solver,
             router=router,
             fallback_used=fallback_used,

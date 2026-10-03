@@ -34,7 +34,14 @@ app = ["streamlit>=1.38", "fastapi>=0.114", "uvicorn>=0.30", "pydantic>=2.7"]
 opt = ["ortools>=9.10"]
 # Runtime deps for service images that ship only the shared config/paths helpers, not the full
 # core stack (see projects/01-fulfilment-optimisation/Dockerfile).
-service = ["fastapi>=0.114", "uvicorn>=0.30", "pydantic>=2.7", "pyyaml>=6.0", "numpy>=1.26"]
+service = [
+    "fastapi>=0.114",
+    "uvicorn>=0.30",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "numpy>=1.26",
+    "ortools>=9.10",
+]
 dev = [
     "pytest>=8.3",
     "pytest-cov>=5.0",

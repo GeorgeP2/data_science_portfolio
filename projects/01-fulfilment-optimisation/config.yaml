@@ -15,8 +15,9 @@ solvers:
     addition_rule: fewest_new_aisles
   alns:  # Ropke & Pisinger (2006); see solvers/alns.py
     max_iterations: 20000  # stop here if the deadline doesn't come first
-    remove_min: 2  # orders removed per iteration: uniform in [remove_min, fraction * n]
+    remove_min: 2  # orders removed: uniform in [remove_min, min(remove_max, fraction * n)]
     remove_max_fraction: 0.3
+    remove_max: 30  # absolute cap, so iterations stay fast on large requests
     determinism: 4.0  # randomisation of worst/related removal (higher = greedier)
     start_worse_accept: 0.05  # start temperature accepts 5% worse with probability 0.5
     cooling: 0.9995  # temperature multiplier per iteration
@@ -45,6 +46,8 @@ benchmark:
 api:
   max_orders: 500
   max_budget_ms: 10000
+  response_margin_ms: 30  # held back from budget_ms for FCFS, the response and serialisation
+  solver_threads: 4  # concurrent solves; extra requests wait, then fall back to FCFS
   layouts:
     # Henn & Wäscher (2012) layout, as the parser reads it from the OBSP setting files.
     henn_waescher:
