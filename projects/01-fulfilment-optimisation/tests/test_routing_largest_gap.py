@@ -119,3 +119,47 @@ def test_bounds_on_random_batches():
 
         if len(picks_by_aisle(locations)) <= 2:
             assert route.length == S_SHAPE.length(locations, HW)
+
+
+def reference_length(locations, layout) -> float:
+    """The original formula, built on ``split_at_largest_gap``, to check the fast path."""
+    from fulfilment_optimisation.routing.largest_gap import split_at_largest_gap
+
+    aisles = picks_by_aisle(locations)
+    if not aisles:
+        return 0.0
+    last = max(aisles)
+    total = 2 * layout.depot_offset + 2 * layout.x(last)
+    if len(aisles) == 1:
+        return total + 2 * layout.y(max(loc.position for loc in aisles[last]))
+    total += 2 * layout.aisle_length
+    for picks in list(aisles.values())[1:-1]:
+        total += 2 * (layout.aisle_length - split_at_largest_gap(picks, layout)[2])
+    return total
+
+
+@pytest.mark.parametrize(
+    "layout",
+    [
+        HW,
+        Layout(
+            n_aisles=7,
+            n_positions=20,
+            location_length=1.3,
+            aisle_spacing=3.7,
+            end_offset=0.6,
+            depot_offset=2.0,
+        ),
+    ],
+    ids=["henn_waescher", "irregular_spacing"],
+)
+def test_fast_length_matches_reference(layout):
+    rng = random.Random(7)
+    for _ in range(2000):
+        picks = [
+            Location(
+                rng.randrange(layout.n_aisles), rng.randrange(layout.n_positions), rng.randrange(2)
+            )
+            for _ in range(rng.randint(1, 40))
+        ]
+        assert ROUTER.length(picks, layout) == pytest.approx(reference_length(picks, layout))
