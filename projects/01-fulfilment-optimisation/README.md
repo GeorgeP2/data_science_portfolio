@@ -25,13 +25,56 @@ downloaded by script rather than redistributed; see [`data/README.md`](data/READ
 
 ## Approach
 
-_TBC._
+The warehouse is a single block of parallel aisles with the depot in front of aisle 0, using the
+Henn & Wäscher (2012) geometry so distances are comparable with the published instances. Each order
+is a set of pick locations, and a picker can carry a fixed number of items per tour.
+
+**Batching solvers** group orders into tours. All share one interface (`solvers/base.py`): a
+solver takes a deadline, publishes improvements to a thread-safe incumbent, and returns its best
+solution.
+
+| Solver | What it does | Reference |
+|--------|--------------|-----------|
+| FCFS (baseline) | Fills each tour in arrival order until the next order doesn't fit | – |
+| Seed | Seeds each tour with the order visiting most aisles, then adds the orders that add the fewest new aisles | de Koster et al. (1999) |
+| Savings | Merges the pair of tours with the largest distance saving, re-costing exactly after every merge (C&W(ii)) | de Koster et al. (1999) |
+| ALNS | Adaptive large neighbourhood search from the savings start: 3 destroy and 2 repair operators, simulated annealing, adaptive weights, cached tour costs | Ropke & Pisinger (2006) |
+| CP-SAT | Set partitioning over a pool of candidate tours, each costed exactly; exact on ≤ 12 orders, otherwise the pool comes from ALNS | OR-Tools |
+
+**Routing** turns a tour's picks into a walk: S-shape and largest-gap (`routing/`). Batching
+solvers only ask the router for tour lengths, so routing policies are interchangeable.
+
+**Benchmark harness** (`benchmark.py`) runs every solver × router × instance × time limit from
+`config.yaml` in a process pool, checks every solution is feasible, and writes
+`outputs/runs.parquet` and `outputs/metrics.json`.
+
+**Service** (`api/`): `POST /batch` takes orders, a layout, picker capacity, a solver, a router and
+`budget_ms`. The budget is a hard limit on server-side response time: FCFS is computed first, the
+chosen solver runs in a worker thread, and at the deadline the service returns the solver's best
+solution so far, or FCFS (`fallback_used: true`) if there is nothing better. Requests over the
+order limit get 413; requests that can't be solved as given (an order over capacity, a pick
+outside the layout) get 422 with a message.
 
 ## Results
 
-| Model | Metric | Score |
-|-------|--------|-------|
-| Baseline | | |
+_Interim: one 1 s budget on the 96 Henn & Wäscher instances. The Pareto chart over budgets and the
+comparison with published values are still to come._
+
+| Solver | Distance saved vs FCFS (S-shape) | (largest gap) | Solve time p50 / p95 |
+|--------|---------------------------------:|--------------:|---------------------:|
+| FCFS | – | – | < 0.1 ms |
+| Seed | 15.2% | 10.6% | 0.6 / 1.5 ms |
+| Savings | 24.4% | 20.7% | 11–20 / 35–57 ms |
+| ALNS | **27.8%** | **23.0%** | uses the 1 s budget |
+| CP-SAT | 27.2% | 22.9% | uses the 1 s budget |
+
+Mean over 96 instances per routing policy, on a laptop CPU. ALNS and CP-SAT are never worse than
+savings on any instance; seed is worse than FCFS on 4.
+
+**Service latency** (ALNS, requests of 10–300 orders, server-side time from the `Server-Timing`
+header): with a 50 ms budget, p99 is 22.7 ms on the laptop, since the solver stops 30 ms early to
+leave time for the response. On one emulated x86 CPU, closer to a small cloud instance, the
+slowest of 300 requests took 50.6 ms. Live numbers come with the deploy.
 
 _Key figure(s):_
 
@@ -39,16 +82,33 @@ _Key figure(s):_
 
 ## Key takeaways
 
-- …
+Interim, from the 1 s results above:
+
+- **Savings captures most of the gain.** It saves 21–24% in tens of milliseconds; ALNS adds
+  another 2–4 points with a full second.
+- **CP-SAT doesn't beat ALNS at 1 s.** Half the budget goes on building its pool, which costs more
+  than recombining tours gains back. It proves optimality over its pool on 71% of 20-order
+  instances, but almost never at 40 orders or more.
+- **A hard latency budget takes engineering beyond the solver.** Keeping p99 under budget needed
+  the clock to start when the request arrives, the response built without nested pydantic models,
+  and garbage collection moved between requests.
+- **Limitation:** everything assumes a single-block rectangular layout, the benchmarks' geometry.
+  Real sites are often irregular; graph-defined layouts are planned as phase 3.
 
 ## Reproduce
 
 ```bash
-# from the repo root, with the venv active
+# from the repo root, with the venv active (`make setup-all`, or at least the app and opt extras)
 cd projects/01-fulfilment-optimisation
-PYTHONPATH=src python -m fulfilment_optimisation.download   # benchmark instances → data/raw/
+PYTHONPATH=src python -m fulfilment_optimisation.download henn_waescher  # instances → data/raw/
+PYTHONPATH=src python -m fulfilment_optimisation.benchmark               # grid from config.yaml → outputs/
 pytest
 ```
+
+The benchmark grid (solvers, routers, time limits, seeds) and every solver parameter are in
+`config.yaml`. FCFS, seed and savings are deterministic. ALNS and CP-SAT are deterministic for a
+fixed seed and iteration cap, but under a time limit the number of iterations depends on machine
+speed, so their numbers vary slightly between runs.
 
 ## Run locally
 
@@ -75,4 +135,10 @@ data: its ignore file lets in only the code and `config.yaml`.
 
 ## Skills demonstrated
 
-- …
+- Optimisation modelling: set partitioning in CP-SAT, and when an exact model loses to a heuristic
+- Metaheuristics: ALNS with adaptive operator weights and simulated annealing, built from scratch
+- Classic OR heuristics: seed batching, Clarke & Wright savings, S-shape and largest-gap routing
+- Anytime algorithms behind a hard latency budget, with a thread-safe incumbent and FCFS fallback
+- Performance work: cost caching, incremental insertion costs, response building and GC tuning
+- Benchmarking: a reproducible grid with feasibility checks on every result
+- Service engineering: FastAPI contract with clear 413/422 errors, multi-stage Docker image
