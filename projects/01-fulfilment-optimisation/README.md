@@ -90,6 +90,27 @@ FCFS with S-shape**, against 27.8% for the best S-shape result. With optimal rou
 overtakes ALNS (better on 48 of 96 instances): the exact router is about 15× slower per call, so
 ALNS gets fewer iterations, while CP-SAT proves its pool optimal in 65% of runs.
 
+**Held-out generated scenarios** (run once on seeds never used in development, with settings frozen
+in a commit beforehand; [full tables](../../docs/projects/p1-fulfilment-optimisation/results/held_out.md)).
+KIT-style shifts are batched per 30-minute arrival window at 1 s per window. Saved against FCFS
+with S-shape routing:
+
+| Scenario | Seed | Savings | ALNS | CP-SAT |
+|---|---:|---:|---:|---:|
+| `baseline` (KIT standard case) | 26.5% | 39.6% | **42.8%** | 42.6% |
+| `peak_day` (2,000 orders, waves) | 37.8% | 49.7% | 50.3% | **50.3%** |
+| `high_affinity` | 31.6% | 46.1% | **48.2%** | 48.1% |
+| `henn_waescher_like` | 16.5% | 26.3% | **28.7%** | 27.2% |
+
+Small KIT-style orders batch many to a tour, so the savings are larger than on the benchmark.
+The ranking holds on every scenario. One cell failed, and it's reported as it came out: **peak
+day with optimal routing**. Windows of 90-300 orders were too large for the exact router at 1 s.
+Savings ran out of time while costing all order pairs in 73 of 160 windows and returned
+single-order tours, 4.8 times FCFS's distance (−304% on average). ALNS and CP-SAT, which start
+from savings, got almost no search time (8% and 5%). The service isn't exposed to this, because its
+runner returns FCFS whenever a solver's answer is worse. Making savings fall back to FCFS, and
+capping the exact router's use on large windows, are follow-ups to test on development seeds.
+
 **Against published results.** No per-instance distances are published for these instances, so
 the check is relative: each solver's improvement over C&W(ii) savings, per class, against Henn &
 Wäscher's best method (ABHC*, within 0.1–1.4% of optimal) on their instances from the same

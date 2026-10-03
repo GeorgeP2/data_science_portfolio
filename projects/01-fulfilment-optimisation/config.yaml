@@ -143,3 +143,18 @@ validity:
   orders_per_setting: 4000  # orders generated per KIT setting
   ranking_instances: 24  # generated henn_waescher_like instances for the solver ranking
   ranking_time_limit: 1.0
+
+# T21 held-out run: `python -m fulfilment_optimisation.final`. This section and the `solvers`
+# section above were committed before the run; the write-up records the commit it ran on.
+final:
+  # tight_due_dates is left out: it changes only due dates, which the distance-minimising solvers
+  # ignore, so with the same seeds its results would repeat baseline's exactly.
+  scenarios: [baseline, peak_day, high_affinity, henn_waescher_like, henn_waescher_paper]
+  seeds: [10000, 10009]  # inclusive; inside generator.held_out_seeds, never used in development
+  window_seconds: 1800  # KIT-style shifts (~1,000+ orders) are batched per 30-min arrival window
+  whole_shift: [henn_waescher_like, henn_waescher_paper]  # ~60 orders: batched in one go
+  solvers: [fcfs, seed, savings, alns, cp_sat]
+  routers: [s_shape, optimal]
+  time_limit: 1.0  # seconds per window
+  workers: 6  # single-threaded solvers: one per performance core
+  cp_sat_workers: 2  # CP-SAT runs 4 threads per solve
