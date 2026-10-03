@@ -25,5 +25,6 @@ ENV PATH=/venv/bin:$PATH \
     PORT=8080
 USER app
 EXPOSE 8080
-# Cloud Run sets PORT. sh expands it at start-up, then exec hands PID 1 to uvicorn for signals.
+# PORT defaults to 8080, where the Lambda Web Adapter forwards requests; hosts may override it.
+# sh expands it at start-up, then exec hands PID 1 to uvicorn so it receives signals.
 CMD ["sh", "-c", "exec uvicorn fulfilment_optimisation.api.app:app --host 0.0.0.0 --port \"$PORT\""]
