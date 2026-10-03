@@ -2,9 +2,11 @@
 
 There is one article per storage slot (aisle, position, side), as in the KIT suite.
 
-- **Popularity** is ``uniform`` or ``abc``: KIT's classes, where the most popular 20% of articles
-  take 80% of demand, the next 30% take 15% and the last 50% take 5% (T17). Within a class,
-  articles are equally popular.
+- **Popularity** is ``uniform``, ``abc`` (KIT's classes: the most popular 20% of articles take 80%
+  of demand, the next 30% take 15% and the last 50% take 5%; T17), ``henn_waescher`` (what the
+  benchmark files contain: A is 10% of articles with 52% of demand, B 20% with 36%, C 70% with
+  12%) or ``henn_waescher_paper`` (their section 6.1 says B is 30% and C 60%; T20 found the files
+  differ). Within a class, articles are equally popular.
 - **Affinity** groups articles into clusters of ``cluster_size`` (within a popularity class, so
   clustering doesn't change popularity). When an order draws its next line, with probability
   ``affinity`` it takes it from the cluster of the line before. KIT orders show no affinity, so
@@ -25,8 +27,12 @@ import numpy as np
 
 from fulfilment_optimisation.domain import DEPOT, Layout, Location, distance
 
-ABC_FRACTIONS = (0.2, 0.3, 0.5)
-ABC_WEIGHTS = (0.8, 0.15, 0.05)
+# Article share and demand share per class (A, B, C).
+CLASS_PRESETS = {
+    "abc": ((0.2, 0.3, 0.5), (0.8, 0.15, 0.05)),  # KIT
+    "henn_waescher": ((0.1, 0.2, 0.7), (0.52, 0.36, 0.12)),  # the benchmark files (T20)
+    "henn_waescher_paper": ((0.1, 0.3, 0.6), (0.52, 0.36, 0.12)),  # their section 6.1
+}
 STORAGE_POLICIES = ("random", "A_closest_to_depot", "A_to_X", "A_to_Y", "clustered")
 
 
@@ -54,9 +60,10 @@ def _slots(layout: Layout) -> list[Location]:
 def _classes(n: int, popularity: str) -> np.ndarray:
     if popularity == "uniform":
         return np.zeros(n, dtype=int)
-    if popularity != "abc":
-        raise ValueError(f"unknown popularity {popularity!r}; choose 'uniform' or 'abc'")
-    bounds = np.round(np.cumsum(ABC_FRACTIONS) * n).astype(int)
+    if popularity not in CLASS_PRESETS:
+        choices = ["uniform", *CLASS_PRESETS]
+        raise ValueError(f"unknown popularity {popularity!r}; choose from {choices}")
+    bounds = np.round(np.cumsum(CLASS_PRESETS[popularity][0]) * n).astype(int)
     classes = np.empty(n, dtype=int)
     start = 0
     for c, end in enumerate(bounds):
@@ -92,7 +99,8 @@ def build_catalogue(
     if popularity == "uniform":
         weights = np.full(n, 1 / n)
     else:
-        weights = np.array([ABC_WEIGHTS[c] / np.count_nonzero(classes == c) for c in classes])
+        demand = CLASS_PRESETS[popularity][1]
+        weights = np.array([demand[c] / np.count_nonzero(classes == c) for c in classes])
 
     # Clusters of related articles, within each popularity class.
     cluster = np.empty(n, dtype=int)

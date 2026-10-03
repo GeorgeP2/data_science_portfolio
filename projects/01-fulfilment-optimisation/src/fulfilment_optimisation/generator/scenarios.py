@@ -47,7 +47,9 @@ def generate_instance(generator: Mapping[str, Any], name: str, seed: int) -> Ins
     size = generator["order_sizes"][settings["order_size"]]
     rng = np.random.default_rng(seed)
 
-    layout = sample_layout(LayoutRanges.from_config(generator["layout"]), rng)
+    # A scenario can pin parts of the layout (e.g. Henn & Wäscher's 10 x 45).
+    layout_ranges = {**generator["layout"], **settings.get("layout", {})}
+    layout = sample_layout(LayoutRanges.from_config(layout_ranges), rng)
     catalogue = build_catalogue(
         layout,
         rng,
