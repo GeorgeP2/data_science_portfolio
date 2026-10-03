@@ -86,3 +86,38 @@ generator:
     aisle_spacing: 5.0
     end_offset: 1.0
     depot_offset: 1.0
+  # Seeds are split so tuning never sees the instances the final numbers (T21) are reported on.
+  development_seeds: [0, 9999]
+  held_out_seeds: [10000, 10999]
+  # Order-size presets: lines per order (one unit each) and the picker capacity that goes with them.
+  order_sizes:
+    kit:  # T17: KIT's default mix; the capacity is assumed (KIT has none): about 16 orders a tour
+      lines: [1, 2, 3]
+      weights: [0.8, 0.15, 0.05]
+      capacity: 20
+    henn_waescher:  # 5-25 items uniformly, 2-5 orders a tour (Henn & Wäscher, section 6.2)
+      lines: [5, 25]  # inclusive range
+      capacity: 45
+  # Named scenarios. Unset keys fall back to `baseline`.
+  scenarios:
+    baseline:  # KIT's standard case
+      orders_per_shift: 1000
+      arrivals: {process: poisson}
+      order_size: kit
+      popularity: abc
+      affinity: 0.0
+      cluster_size: 8
+      storage_policy: random
+      due_dates: {rule: shift_end}
+    peak_day:  # KIT's highest volume with its strongest waves
+      orders_per_shift: 2000
+      arrivals: {process: waves, num_waves: 5, stochasticity: 1.0}
+    high_affinity:  # not in KIT: most next lines come from the previous line's cluster, and
+      affinity: 0.8   # clusters are stored together (correlated storage)
+      storage_policy: clustered
+    tight_due_dates:  # KIT's tightest OFAT rule
+      due_dates: {rule: relative, offset_seconds: 600}
+    henn_waescher_like:  # benchmark-sized orders on generated layouts, for batching comparisons
+      orders_per_shift: 60
+      order_size: henn_waescher
+      storage_policy: A_to_X  # their class-based storage puts A articles in the first aisle

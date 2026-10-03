@@ -75,6 +75,7 @@ class Order:
     id: int
     locations: tuple[Location, ...]
     due_date: float | None = None
+    arrival_time: float | None = None  # generated instances: seconds from the shift start
 
     @property
     def size(self) -> int:
