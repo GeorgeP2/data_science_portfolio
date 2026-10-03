@@ -11,6 +11,15 @@
 An order-batching and pick-path optimisation API that beats a greedy baseline within a hard latency
 budget, benchmarked against published academic instances so the claims can be checked.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="reports/figures/pareto_dark.png">
+  <img alt="Walking distance saved against first-come-first-served batching, by solve time, for seed, savings, ALNS and CP-SAT under S-shape and largest-gap routing" src="reports/figures/pareto.png">
+</picture>
+
+Savings captures most of the gain in about 10 ms: 24% less walking than FCFS with S-shape
+routing. ALNS adds 2 points by 100 ms and 4.7 by 10 s. CP-SAT stays just below ALNS at every
+budget and only draws level at 10 s ([data](../../docs/projects/p1-fulfilment-optimisation/results/pareto.md)).
+
 ## Data
 
 | Source | What | Licence | Use |
@@ -91,10 +100,6 @@ header): with a 50 ms budget, p99 is 22.7 ms on the laptop, since the solver sto
 leave time for the response. On one emulated x86 CPU, closer to a small cloud instance, the
 slowest of 300 requests took 50.6 ms. Live numbers come with the deploy.
 
-_Key figure(s):_
-
-<!-- ![](reports/figures/example.png) -->
-
 ## Key takeaways
 
 Interim, from the 1 s results above:
@@ -104,8 +109,8 @@ Interim, from the 1 s results above:
 - **ALNS needs more than 1 s on 60+ orders to match published quality.** At 10 s it is within
   1 point of the best published method on every shared class. The largest-gap router is 4.5×
   slower per call than S-shape, so it gets fewer iterations per second.
-- **CP-SAT doesn't beat ALNS at 1 s.** Half the budget goes on building its pool, which costs more
-  than recombining tours gains back. It proves optimality over its pool on 71% of 20-order
+- **CP-SAT doesn't beat ALNS at any budget up to 10 s.** Half the budget goes on building its
+  pool, which costs more than recombining tours gains back; it draws level only at 10 s. It proves optimality over its pool on 71% of 20-order
   instances, but almost never at 40 orders or more.
 - **A hard latency budget takes engineering beyond the solver.** Keeping p99 under budget needed
   the clock to start when the request arrives, the response built without nested pydantic models,
@@ -121,6 +126,20 @@ cd projects/01-fulfilment-optimisation
 PYTHONPATH=src python -m fulfilment_optimisation.download henn_waescher  # instances → data/raw/
 PYTHONPATH=src python -m fulfilment_optimisation.benchmark               # grid from config.yaml → outputs/
 pytest
+```
+
+The Pareto chart needs a sweep over budgets (about 45 minutes). It runs in three parts so that
+single-threaded ALNS can use one worker per performance core while CP-SAT, which runs 4 threads
+per solve, gets fewer workers:
+
+```bash
+B="PYTHONPATH=src python -m fulfilment_optimisation.benchmark"
+eval $B --solvers fcfs seed savings --time-limits 1 --workers 6 --output sweep_constructive.parquet
+eval $B --solvers alns --time-limits 0.1 0.25 0.5 1 2 5 10 \
+    --param alns.max_iterations=100000000 --workers 6 --output sweep_alns.parquet
+eval $B --solvers cp_sat --time-limits 0.1 0.25 0.5 1 2 5 10 \
+    --param cp_sat.pool_iterations=100000000 --workers 2 --output sweep_cp_sat.parquet
+PYTHONPATH=src python -m fulfilment_optimisation.report  # → reports/figures/pareto*.png
 ```
 
 The benchmark grid (solvers, routers, time limits, seeds) and every solver parameter are in
