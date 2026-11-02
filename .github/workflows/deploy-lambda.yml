@@ -1,0 +1,102 @@
+# Reusable: build a project's image, push it to ECR tagged with the commit SHA, point the Lambda at it,
+# then smoke-test the function URL. Infrastructure comes from infra/ (Terraform); this only ships code.
+name: Deploy to Lambda
+
+on:
+  workflow_call:
+    inputs:
+      function_name:
+        description: Lambda function name, also the ECR repository name
+        required: true
+        type: string
+      dockerfile:
+        description: Dockerfile path; the build context is the repo root
+        required: true
+        type: string
+      smoke_request:
+        description: JSON body to POST to the smoke-test path
+        required: true
+        type: string
+      smoke_path:
+        required: false
+        type: string
+        default: batch
+      smoke_check:
+        description: jq expression the smoke-test response must satisfy
+        required: false
+        type: string
+        default: "true"
+    secrets:
+      deploy_role_arn:
+        # Not a credential (only this repo's main branch can assume it), but a secret is masked in
+        # the public logs, which keeps the account ID out of them.
+        description: Role from infra/ that this repo's main branch may assume
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04-arm
+    concurrency:
+      group: deploy-${{ inputs.function_name }}
+      cancel-in-progress: false
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      FUNCTION: ${{ inputs.function_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.deploy_role_arn }}
+          aws-region: ${{ vars.AWS_REGION }}
+          # Also masks the account ID wherever it appears later, e.g. the ECR registry.
+          mask-aws-account-id: true
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/${{ inputs.function_name }}:${{ github.sha }}
+        run: |
+          # Tags are immutable, so a re-run of the same commit reuses its image.
+          if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "$IMAGE already pushed"
+          else
+            # --provenance=false: Lambda rejects the multi-manifest index that attestations produce.
+            docker buildx build --platform linux/arm64 --provenance=false --push \
+              -f "${{ inputs.dockerfile }}" -t "$IMAGE" .
+          fi
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Update function
+        run: |
+          aws lambda update-function-code --function-name "$FUNCTION" --image-uri "$IMAGE" \
+            --query LastUpdateStatus --output text
+          aws lambda wait function-updated-v2 --function-name "$FUNCTION"
+
+      - name: Smoke test
+        run: |
+          url=$(aws lambda get-function-url-config --function-name "$FUNCTION" --query FunctionUrl --output text)
+          # The first call after a deploy is a cold start; allow a few tries before failing.
+          for attempt in 1 2 3; do
+            status=$(curl -s -o response.json -w '%{http_code}' --max-time 60 \
+              --aws-sigv4 "aws:amz:${AWS_REGION}:lambda" \
+              --user "$AWS_ACCESS_KEY_ID:$AWS_SECRET_ACCESS_KEY" \
+              -H "x-amz-security-token: $AWS_SESSION_TOKEN" \
+              -H "content-type: application/json" \
+              -d @"${{ inputs.smoke_request }}" \
+              "${url}${{ inputs.smoke_path }}") || status=000
+            if [ "$status" = 200 ] && jq -e '${{ inputs.smoke_check }}' response.json >/dev/null; then
+              echo "Smoke test passed on attempt $attempt"
+              exit 0
+            fi
+            echo "Attempt $attempt: HTTP $status"; head -c 500 response.json 2>/dev/null; echo
+            sleep 5
+          done
+          echo "::error::Smoke test failed for $FUNCTION"
+          exit 1

@@ -28,3 +28,50 @@ jobs:
         run: mypy
       - name: Test
         run: pytest --cov --cov-report=term-missing
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Format
+        run: terraform fmt -check -recursive infra
+      - name: Validate
+        run: |
+          for dir in infra/bootstrap infra/projects/*/; do
+            terraform -chdir="$dir" init -backend=false -input=false
+            terraform -chdir="$dir" validate
+          done
+
+  # Deploys run only on pushes to main, after every check above passes.
+  changes:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      p1: ${{ steps.diff.outputs.p1 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        run: |
+          # The image includes the shared package and the root pyproject, so those redeploy too.
+          files=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")
+          if grep -qE '^(projects/01-fulfilment-optimisation/|src/portfolio/|pyproject\.toml$)' <<< "$files"; then
+            echo "p1=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy-p1:
+    needs: [lint-and-test, terraform, changes]
+    if: needs.changes.outputs.p1 == 'true'
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      function_name: fulfilment-optimisation
+      dockerfile: projects/01-fulfilment-optimisation/Dockerfile
+      smoke_request: projects/01-fulfilment-optimisation/examples/batch_request.json
+      smoke_check: '.status == "finished" and (.batches | length) > 0'
+    secrets:
+      deploy_role_arn: ${{ secrets.P1_DEPLOY_ROLE_ARN }}
