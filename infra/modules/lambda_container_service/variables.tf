@@ -58,7 +58,7 @@ variable "ecr_keep_images" {
 }
 
 variable "github_repo" {
-  description = "owner/name of the repo whose main branch may deploy, via the account's GitHub OIDC provider."
+  description = "Repo whose branch may deploy, as it appears in the OIDC token's sub claim: owner/name, or owner@owner_id/name@repo_id if the repo uses immutable subjects (gh api repos/OWNER/REPO/actions/oidc/customization/sub)."
   type        = string
 }
 
