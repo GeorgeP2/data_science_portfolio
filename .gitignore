@@ -241,3 +241,10 @@ lightning_logs/
 /docs/Principal ML Engineer Roadmap.md
 /docs/projects/*/tasks/
 *.pdf
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
