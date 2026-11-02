@@ -184,6 +184,7 @@ data "aws_iam_policy_document" "deploy" {
     actions = [
       "lambda:GetFunction",
       "lambda:GetFunctionConfiguration",
+      "lambda:GetFunctionUrlConfig",
       "lambda:UpdateFunctionCode",
     ]
     resources = [aws_lambda_function.this.arn]

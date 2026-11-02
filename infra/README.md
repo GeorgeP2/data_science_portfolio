@@ -15,6 +15,11 @@ Sign in with `aws login` (no access keys), then apply `bootstrap/` first; see it
 
 Copy `projects/p1/main.tf`, change the state `key`, `name` and sizing. The module needs no changes.
 
+To deploy on merge, add a path check to the `changes` job and a `deploy-<project>` job in
+`.github/workflows/ci.yml` (copy `deploy-p1`), and store the `deploy_role_arn` output as a repo
+secret. The repo variable `AWS_REGION` is shared. The role ARN is a secret only so it's masked in
+the public Actions logs; it isn't a credential.
+
 ## First apply
 
 Lambda can't be created without an image, so the first apply is in three steps. After that, the
