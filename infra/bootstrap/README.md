@@ -12,6 +12,10 @@ actual spend and at 100% of forecast spend. Set the alert address in `terraform.
 budget_alert_email = "you@example.com"
 ```
 
+The same address gets a daily Cost Anomaly Detection digest: a per-service monitor flags unusual
+spend of $1 or more, even while the total is under budget. An account can have only one per-service
+monitor; if AWS already created a default one, delete it in the console or `terraform import` it.
+
 And it registers GitHub Actions as an OIDC identity provider, once per account, so deploy workflows
 assume a role instead of using stored access keys. Which repo and branch may assume each deploy role
 is set per project in `modules/lambda_container_service`.
