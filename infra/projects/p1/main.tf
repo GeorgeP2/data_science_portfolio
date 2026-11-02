@@ -29,10 +29,12 @@ provider "aws" {
 module "service" {
   source = "../../modules/lambda_container_service"
 
-  name        = "fulfilment-optimisation"
-  image_tag   = "bootstrap"
-  github_repo = "GeorgeP2/data_science_portfolio"
-  public      = false # IAM-signed requests only; see ../../README.md for calling it
+  name      = "fulfilment-optimisation"
+  image_tag = "bootstrap"
+  # The repo uses immutable OIDC subjects, so the trust names it by owner and repo IDs too.
+  github_repo = "GeorgeP2@16223737/data_science_portfolio@1389349158"
+  # IAM-signed requests only; see ../../README.md for calling it.
+  public = false
 
   # New-account cap. ALNS and CP-SAT are CPU-bound and CPU scales with memory: move to 1769
   # (one vCPU) once the cap lifts, before measuring p95 in T26.
