@@ -12,6 +12,10 @@ actual spend and at 100% of forecast spend. Set the alert address in `terraform.
 budget_alert_email = "you@example.com"
 ```
 
+And it registers GitHub Actions as an OIDC identity provider, once per account, so deploy workflows
+assume a role instead of using stored access keys. Which repo and branch may assume each deploy role
+is set per project in `modules/lambda_container_service`.
+
 Run once per account, signed in with `aws login`:
 
 ```bash

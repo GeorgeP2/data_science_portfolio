@@ -11,6 +11,8 @@ RUN python -c "import tomllib; deps = tomllib.load(open('/build/pyproject.toml',
 
 FROM python:3.13-slim
 RUN useradd --create-home --uid 10001 app
+# On Lambda the adapter forwards events to uvicorn over HTTP; under plain `docker run` it stays idle.
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.1.0 /lambda-adapter /opt/extensions/lambda-adapter
 COPY --from=builder /venv /venv
 WORKDIR /app
 # Same layout as the repo, so portfolio.ProjectPaths finds config.yaml.

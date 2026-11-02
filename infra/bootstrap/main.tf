@@ -140,6 +140,13 @@ resource "aws_budgets_budget" "monthly" {
   }
 }
 
+# One per account: lets GitHub Actions assume deploy roles without stored keys. Each project's
+# deploy role (modules/lambda_container_service) decides which repo and branch it trusts.
+resource "aws_iam_openid_connect_provider" "github" {
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+}
+
 output "state_bucket" {
   value = aws_s3_bucket.state.id
 }
