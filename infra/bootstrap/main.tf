@@ -140,6 +140,34 @@ resource "aws_budgets_budget" "monthly" {
   }
 }
 
+# Catches per-service spikes the budget would miss while still under its limit. Free.
+resource "aws_ce_anomaly_monitor" "services" {
+  name              = "services"
+  monitor_type      = "DIMENSIONAL"
+  monitor_dimension = "SERVICE"
+}
+
+# Email subscribers only support DAILY or WEEKLY digests; IMMEDIATE needs SNS.
+resource "aws_ce_anomaly_subscription" "services" {
+  name             = "services-daily"
+  frequency        = "DAILY"
+  monitor_arn_list = [aws_ce_anomaly_monitor.services.arn]
+
+  subscriber {
+    type    = "EMAIL"
+    address = var.budget_alert_email
+  }
+
+  # Ignore anomalies with under $1 of total impact; at this account's scale anything above is real.
+  threshold_expression {
+    dimension {
+      key           = "ANOMALY_TOTAL_IMPACT_ABSOLUTE"
+      match_options = ["GREATER_THAN_OR_EQUAL"]
+      values        = ["1"]
+    }
+  }
+}
+
 # One per account: lets GitHub Actions assume deploy roles without stored keys. Each project's
 # deploy role (modules/lambda_container_service) decides which repo and branch it trusts.
 resource "aws_iam_openid_connect_provider" "github" {
