@@ -32,11 +32,17 @@ solvers:
     workers: 4  # CP-SAT search workers
     cost_scale: 1000  # distances x this, rounded, for CP-SAT's integer objective
     deadline_margin: 0.05  # seconds held back from CP-SAT's time limit (covers post-solve work)
+  ortools:  # practitioner baseline: OR-Tools vehicle routing; see solvers/ortools_routing.py
+    model: order_nodes  # or pick_nodes (keeps the savings batches; see the module docstring)
+    cost_scale: 10  # distances x this, rounded, for OR-Tools' integer arc costs
+    spare_vehicles: 2  # vehicles beyond the savings start's batch count
+    metaheuristic: GUIDED_LOCAL_SEARCH
+    deadline_margin: 0.02  # seconds held back from the time limit (covers re-scoring)
 
 # Grid for `python -m fulfilment_optimisation.benchmark`: every combination is one run.
 benchmark:
   instance_sets: [henn_waescher]
-  solvers: [fcfs, seed, savings, alns, cp_sat]
+  solvers: [fcfs, seed, savings, alns, cp_sat, ortools]
   routers: [s_shape, largest_gap, optimal]
   time_limits: [1.0]  # seconds
   seeds: [0]

@@ -42,12 +42,20 @@ def _cp_sat(seed: int, params: Mapping[str, Any]) -> Solver:
     return CPSATBatching(seed=seed, **params)
 
 
+def _ortools(seed: int, params: Mapping[str, Any]) -> Solver:
+    # Deterministic for a given time limit, so the seed is unused.
+    from fulfilment_optimisation.solvers.ortools_routing import ORToolsRouting
+
+    return ORToolsRouting(**params)
+
+
 SOLVERS: dict[str, SolverFactory] = {
     "fcfs": _fcfs,
     "seed": _seed,
     "savings": _savings,
     "alns": _alns,
     "cp_sat": _cp_sat,
+    "ortools": _ortools,
 }
 ROUTERS: dict[str, Callable[[], Router]] = {
     "s_shape": SShape,

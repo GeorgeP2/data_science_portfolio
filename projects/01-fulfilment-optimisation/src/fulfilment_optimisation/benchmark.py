@@ -4,6 +4,8 @@
     PYTHONPATH=src python -m fulfilment_optimisation.benchmark --solvers savings alns \
         --time-limits 10 60 --orders 40 60 80 --param alns.max_iterations=100000000 \
         --output runs_long.parquet
+    PYTHONPATH=src python -m fulfilment_optimisation.benchmark --solvers ortools \
+        --routers s_shape --param ortools.model=pick_nodes --output runs_pick_nodes.parquet
 
 Without flags, the grid is the ``benchmark`` section of ``config.yaml``; flags override parts of it
 for one-off runs.
@@ -138,13 +140,14 @@ def summarise(runs: pd.DataFrame) -> pd.DataFrame:
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the benchmark grid.")
     parser.add_argument("--solvers", nargs="+", help="override benchmark.solvers")
+    parser.add_argument("--routers", nargs="+", help="override benchmark.routers")
     parser.add_argument("--time-limits", nargs="+", type=float, help="override, in seconds")
     parser.add_argument("--orders", nargs="+", type=int, help="only instances with these sizes")
     parser.add_argument(
         "--param",
         action="append",
         default=[],
-        help="solver parameter, e.g. alns.max_iterations=1e8",
+        help="solver parameter, e.g. alns.max_iterations=1e8 or ortools.model=pick_nodes",
     )
     parser.add_argument("--workers", type=int, help="override benchmark.workers")
     parser.add_argument("--output", default="runs.parquet", help="file name under outputs/")
@@ -168,14 +171,15 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.orders:
         instances = [i for i in instances if len(i.orders) in args.orders]
 
-    runs = grid(instances, solvers, bench.routers, time_limits, bench.seeds)
+    runs = grid(instances, solvers, args.routers or bench.routers, time_limits, bench.seeds)
     log.info("running %d runs on %d instances", len(runs), len(instances))
     params = {name: dict(p) for name, p in cfg.solvers.items()}
     for override in args.param:
         key, value = override.split("=", 1)
         solver, name = key.split(".", 1)
-        params.setdefault(solver, {})[name] = type(params.get(solver, {}).get(name, 0.0))(
-            float(value)
+        default = params.get(solver, {}).get(name, 0.0)
+        params.setdefault(solver, {})[name] = (
+            value if isinstance(default, str) else type(default)(float(value))
         )
     results = run_grid(runs, workers=args.workers or bench.workers, params=params)
     summary = summarise(results)

@@ -43,10 +43,14 @@ def test_orders_are_in_arrival_order_and_fit_a_tour():
 @pytest.mark.parametrize("scenario", ["baseline", "high_affinity", "henn_waescher_like"])
 @pytest.mark.parametrize("solver", sorted(SOLVERS))
 def test_every_solver_is_feasible_on_generated_instances(scenario, solver):
-    if solver == "cp_sat":
+    if solver in ("cp_sat", "ortools"):
         pytest.importorskip("ortools")
     instance = generate_instance(small(GENERATOR, 40), scenario, 11)
-    params = {"alns": {"max_iterations": 200}, "cp_sat": {"pool_iterations": 200}}.get(solver, {})
+    params = {
+        "alns": {"max_iterations": 200},
+        "cp_sat": {"pool_iterations": 200},
+        "ortools": {"metaheuristic": "GREEDY_DESCENT"},  # stops at a local optimum, not at 2 s
+    }.get(solver, {})
     for router in ("s_shape", "optimal"):
         solution = SOLVERS[solver](0, params).solve(instance, ROUTERS[router](), Deadline.after(2))
         check_feasible(instance, solution)
