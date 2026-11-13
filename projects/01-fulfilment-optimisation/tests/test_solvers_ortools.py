@@ -59,7 +59,9 @@ def test_pick_node_tours_match_optimal_routing_on_small_instances(seed):
 def test_pick_node_tours_are_never_shorter_than_optimal(seed):
     instance = random_instance(40, capacity=12, seed=seed)
     solver = ORToolsRouting(model="pick_nodes")
-    solution = solver.solve(instance, Optimal(), Deadline.after(0.3))
+    # No deadline: OR-Tools stops at its first local optimum. With one, a slow runner could spend
+    # it all on the savings start and skip the search.
+    solution = solver.solve(instance, Optimal(), Deadline.never())
     assert solver.model_cost is not None
     assert solver.model_cost >= solution.total_distance - 1e-6
     # Within 5% of the exact tours on these batches.
