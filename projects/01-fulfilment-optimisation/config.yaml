@@ -158,3 +158,19 @@ final:
   time_limit: 1.0  # seconds per window
   workers: 6  # single-threaded solvers: one per performance core
   cp_sat_workers: 2  # CP-SAT runs 4 threads per solve
+
+# T26 load test of the live endpoint: `aws login`, then `python -m fulfilment_optimisation.loadtest`.
+loadtest:
+  function: fulfilment-optimisation
+  region: eu-west-2
+  # Request bodies: one per 30-minute arrival window (the same windows as T21), development seeds.
+  scenarios: [baseline, peak_day]
+  seeds: [0, 2]  # inclusive; outside generator.held_out_seeds
+  window_seconds: 1800
+  solver: alns
+  router: s_shape  # optimal routing is too slow on peak-day windows at 1 s (T21)
+  budget_ms: 1000  # the API default
+  concurrency: [1, 4, 8]  # at or under the account's 10, leaving headroom for other functions
+  requests_per_level: 160  # measured, split across the workers
+  warmup_per_worker: 2  # not counted: absorbs cold starts as instances are added
+  log_delay_s: 20  # wait for REPORT lines to reach CloudWatch
