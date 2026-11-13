@@ -2,37 +2,51 @@
 
 > **Category:** MLOps & Deployment · **Status:** 🚧 In progress
 
-## Problem
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="reports/figures/pareto_dark.png">
+  <img alt="Walking distance saved against first-come-first-served batching, by solve time, for seed, savings, ALNS and CP-SAT under S-shape and largest-gap routing" src="reports/figures/pareto.png">
+</picture>
 
 > For a manual picker-to-parts warehouse, how much walking distance can batching and routing
 > optimisation save compared with first-come-first-served greedy batching, and what does each
 > extra millisecond of solve time buy?
 
 An order-batching and pick-path optimisation API that beats a greedy baseline within a hard latency
-budget, benchmarked against published academic instances so the claims can be checked.
+budget, benchmarked against published academic instances so the claims can be checked. Means over
+the 96 Henn & Wäscher instances ([data](../../docs/projects/p1-fulfilment-optimisation/results/pareto.md)):
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="reports/figures/pareto_dark.png">
-  <img alt="Walking distance saved against first-come-first-served batching, by solve time, for seed, savings, ALNS and CP-SAT under S-shape and largest-gap routing" src="reports/figures/pareto.png">
-</picture>
+- **Savings captures most of the gain in milliseconds:** 24.4% less walking than FCFS with S-shape
+  routing in a median 10.8 ms, and 20.7% in 12.2 ms with largest gap.
+- **After that, extra time buys a few points.** ALNS saves 26.4% at 100 ms, 27.7% at 1 s and 29.1%
+  at 10 s (S-shape). CP-SAT stays just below ALNS at every budget and only draws level at 10 s.
+- **Routing matters as much as batching.** On the same tours, S-shape walks 19.7% and largest gap
+  16.2% further than optimal routing.
 
-Savings captures most of the gain in about 10 ms: 24% less walking than FCFS with S-shape
-routing. ALNS adds 2 points by 100 ms and 4.7 by 10 s. CP-SAT stays just below ALNS at every
-budget and only draws level at 10 s ([data](../../docs/projects/p1-fulfilment-optimisation/results/pareto.md)).
+**Live endpoint:** AWS Lambda behind a private, IAM-signed function URL ([deployment](#deployment)).
+<!-- T26: update after the 1,769 MB re-run -->
+Measured at 512 MB (about 0.3 vCPU), with ALNS and a 1,000 ms budget: server-side p95 1,045 ms, and 14% of requests fell back to FCFS, almost all of them over 150 orders ([load test](#live-latency)).
 
-## Data
+## Architecture
 
-| Source | What | Licence | Use |
-|--------|------|---------|-----|
-| [KIT Manual Warehouse Order Picking benchmarks](https://doi.org/10.35097/mwsv59v8sk9sqaan) (Barlang, Lehmann, Furmans, 2026) | 2.0 GB JSON: layouts, orders per shift, lines per order, arrival randomness, due dates and storage policies; 132 designed parameter sets (32 one-factor-at-a-time + 100 Latin hypercube) × 100 replications | CC BY 4.0 | Calibrate the generator's parameter ranges; stress scenarios |
-| [Henn & Wäscher (2012) batching instances](https://grafo.etsii.urjc.es/optsicom/obsp.html) | 96 instances: 10 aisles × 90 locations, depot bottom-left, 20–80 orders, capacity 45 or 75, due dates | Not stated: fetched by script, not redistributed | External benchmark |
-| [Arbex Valle et al. Foodmart instances](https://homepages.dcc.ufmg.br/~arbex/orderpicking.html) | 8/16-aisle single- and dual-block layouts, 1,560 SKUs, 5–5,000 orders | Not stated: fetched by script, not redistributed | External benchmark + realistic SKU/order-size distributions |
-| Own generator | Parameterised warehouse + order stream | MIT | Everything else |
-
-Raw data lives in `data/raw/` and is never committed. Instances without a stated licence are
-downloaded by script rather than redistributed; see [`data/README.md`](data/README.md).
-
-## Approach
+```mermaid
+flowchart LR
+    subgraph offline["Offline: benchmark and evaluation"]
+        HW["Henn & Wäscher instances"] --> BM["benchmark.py<br>solver × router × budget"]
+        KIT["KIT suite"] --> PR["kit_profile.py"] --> GEN["generator/"]
+        GEN --> EV["final.py (held out)<br>validity.py"]
+        BM --> REP["report.py<br>Pareto chart"]
+    end
+    subgraph core["Shared core"]
+        SOL["solvers/<br>FCFS, seed, savings, ALNS, CP-SAT"] -- "tour lengths" --> RT["routing/<br>S-shape, largest gap, optimal"]
+    end
+    subgraph service["Service: Docker image on Lambda"]
+        REQ["POST /batch"] --> API["FastAPI app"] --> RUN["runner: FCFS first,<br>solver in a worker thread"]
+        RUN --> OUT["best of solver and FCFS<br>by budget_ms − 30 ms"]
+    end
+    BM --> SOL
+    EV --> SOL
+    RUN --> SOL
+```
 
 The warehouse is a single block of parallel aisles with the depot in front of aisle 0, using the
 Henn & Wäscher (2012) geometry so distances are comparable with the published instances. Each order
@@ -50,7 +64,7 @@ solution.
 | ALNS | Adaptive large neighbourhood search from the savings start: 3 destroy and 2 repair operators, simulated annealing, adaptive weights, cached tour costs | Ropke & Pisinger (2006) |
 | CP-SAT | Set partitioning over a pool of candidate tours, each costed exactly; exact on ≤ 12 orders, otherwise the pool comes from ALNS | OR-Tools |
 
-**Routing** turns a tour's picks into a walk (`routing/`): S-shape, largest-gap, and optimal
+**Routing** turns a tour's picks into a walk (`routing/`): S-shape, largest gap, and optimal
 routing by Ratliff & Rosenthal's (1983) dynamic programme over aisles, checked against brute force.
 Batching solvers only ask the router for tour lengths, so routing policies are interchangeable.
 
@@ -58,16 +72,18 @@ Batching solvers only ask the router for tour lengths, so routing policies are i
 `config.yaml` in a process pool, checks every solution is feasible, and writes
 `outputs/runs.parquet` and `outputs/metrics.json`.
 
+**Generator** (`generator/`): a parameterised warehouse and order stream with ranges taken from the
+KIT suite, for scenarios the published instances can't express (peak days, SKU affinity, small
+orders).
+
 **Service** (`api/`): `POST /batch` takes orders, a layout, picker capacity, a solver, a router and
 `budget_ms`. The budget is a hard limit on server-side response time: FCFS is computed first, the
 chosen solver runs in a worker thread, and at the deadline the service returns the solver's best
-solution so far, or FCFS (`fallback_used: true`) if there is nothing better. Requests over the
-order limit get 413; requests that can't be solved as given (an order over capacity, a pick
-outside the layout) get 422 with a message.
+solution so far, or FCFS (`fallback_used: true`) if there is nothing better.
 
 ## Results
 
-_Interim: the Pareto chart over budgets is still to come._
+### Benchmark at 1 s
 
 Distance saved against FCFS with the same routing policy, at a 1 s budget:
 
@@ -79,21 +95,46 @@ Distance saved against FCFS with the same routing policy, at a 1 s budget:
 | ALNS | **27.6%** | **23.2%** | 21.7% | uses the budget |
 | CP-SAT | 27.2% | 22.7% | **22.2%** | uses the budget |
 
-Mean over 96 instances per routing policy, on a laptop CPU. ALNS and CP-SAT are never worse than
-savings on any instance; seed is worse than FCFS on 2 per routing policy.
+Mean over 96 instances per routing policy, on a laptop CPU, from the default benchmark grid. The
+Pareto sweep lifts ALNS's iteration cap, so its S-shape point at 1 s there is 27.7%. ALNS and CP-SAT
+are never worse than savings on any instance; seed is worse than FCFS on 2 per routing policy.
 
-**Routing matters as much as batching.** On the same tours, S-shape walks 19.7% and largest gap
-16.2% further than optimal routing (1,308 tours built by savings). Percentages above are against
-FCFS *with the same routing*, so optimal routing looks smaller there only because FCFS benefits
-too: in absolute terms, CP-SAT with optimal routing walks 3,939 LU on average, **34.7% less than
-FCFS with S-shape**, against 27.8% for the best S-shape result. With optimal routing, CP-SAT
-overtakes ALNS (better on 48 of 96 instances): the exact router is about 15× slower per call, so
-ALNS gets fewer iterations, while CP-SAT proves its pool optimal in 65% of runs.
+Percentages are against FCFS *with the same routing*, so optimal routing looks smaller only because
+FCFS benefits too. In absolute terms, CP-SAT with optimal routing walks 3,939 LU on average,
+**34.7% less than FCFS with S-shape**, against 27.8% for the best S-shape result. With optimal
+routing CP-SAT overtakes ALNS (better on 48 of 96 instances): the exact router is about 15× slower
+per call, so ALNS gets fewer iterations, while CP-SAT proves its pool optimal in 65% of runs.
 
-**Held-out generated scenarios** (run once on seeds never used in development, with settings frozen
-in a commit beforehand; [full tables](../../docs/projects/p1-fulfilment-optimisation/results/held_out.md)).
-KIT-style shifts are batched per 30-minute arrival window at 1 s per window. Saved against FCFS
-with S-shape routing:
+### Against published results
+
+No per-instance distances are published for these instances, so the check is relative: each
+solver's improvement over C&W(ii) savings, per class, against Henn & Wäscher's best method (ABHC*,
+within 0.1–1.4% of optimal) on their instances from the same generator. The tolerance, set before
+the per-class results were computed, is 1 percentage point below theirs.
+
+| ALNS budget | Classes within tolerance |
+|---|---:|
+| 1 s | 6 of 12 |
+| 10 s | **12 of 12** |
+| 60 s | **12 of 12** |
+
+At 1 s all six misses are 60- or 80-order classes: larger instances need more iterations
+([full tables](../../docs/projects/p1-fulfilment-optimisation/results/published_comparison.md)).
+With S-shape routing, ALNS at 10 s and 60 s improves on savings by 0.7–2.9 points *more* than
+ABHC*. That says more about the baseline or the instance sample than about ALNS beating a
+near-optimal method; the relative measure can't separate small differences.
+
+The published per-instance values are tardiness, not distance. Reproducing the published EDD
+tardiness didn't work: our values are 0.3–0.6× theirs, although our single-order processing
+times match the generator that produced the instances' due dates (R² 0.994). What was tried is
+in [`references/README.md`](references/README.md).
+
+### Held-out generated scenarios
+
+Run once on seeds never used in development, with settings frozen in a commit beforehand
+([full tables](../../docs/projects/p1-fulfilment-optimisation/results/held_out.md)). KIT-style
+shifts are batched per 30-minute arrival window at 1 s per window. Saved against FCFS with S-shape
+routing:
 
 | Scenario | Seed | Savings | ALNS | CP-SAT |
 |---|---:|---:|---:|---:|
@@ -102,56 +143,58 @@ with S-shape routing:
 | `high_affinity` | 31.6% | 46.1% | **48.2%** | 48.1% |
 | `henn_waescher_like` | 16.5% | 26.3% | **28.7%** | 27.2% |
 
-Small KIT-style orders batch many to a tour, so the savings are larger than on the benchmark.
-The ranking holds on every scenario. One cell failed, and it's reported as it came out: **peak
-day with optimal routing**. Windows of 90-300 orders were too large for the exact router at 1 s.
-Savings ran out of time while costing all order pairs in 73 of 160 windows and returned
-single-order tours, 4.8 times FCFS's distance (−304% on average). ALNS and CP-SAT, which start
-from savings, got almost no search time (8% and 5%). The service isn't exposed to this, because its
-runner returns FCFS whenever a solver's answer is worse. Making savings fall back to FCFS, and
-capping the exact router's use on large windows, are follow-ups to test on development seeds.
+Small KIT-style orders batch many to a tour, so the savings are larger than on the benchmark. Seed
+is below savings, and savings below ALNS and CP-SAT, on every scenario. One cell failed, and it's
+reported as it came out: **peak day with optimal routing**. Windows of 90-297 orders were too large
+for the exact router at 1 s. Savings ran out of time while costing all order pairs in 73 of 160
+windows and returned single-order tours, a median 4.8 times FCFS's distance (−304% on average).
+ALNS and CP-SAT, which start from savings, got almost no search time (7.6% and 5.3%). The service
+isn't exposed to this, because its runner returns FCFS whenever a solver's answer is worse.
 
-**Against published results.** No per-instance distances are published for these instances, so
-the check is relative: each solver's improvement over C&W(ii) savings, per class, against Henn &
-Wäscher's best method (ABHC*, within 0.1–1.4% of optimal) on their instances from the same
-generator. The tolerance, set before the per-class results were computed, is 1 percentage point
-below theirs. ALNS is within it on **12 of 12** shared classes at 10 s and at 60 s, but on only 4
-of 12 at 1 s: larger instances need more iterations
-([full table](../../docs/projects/p1-fulfilment-optimisation/results/published_comparison.md)).
-With S-shape routing, ALNS improves on savings by 1–3 points *more* than ABHC*, which says more
-about the baseline or the instance sample than about ALNS beating a near-optimal method; the
-relative measure can't separate small differences.
+The generator itself was checked against KIT and Henn & Wäscher before these runs; see
+[design decision 3](#3-generator-validity).
 
-The published per-instance values are tardiness, not distance. Reproducing the published EDD
-tardiness didn't work: our values are 0.3–0.6× theirs, although our single-order processing
-times match the generator that produced the instances' due dates (R² 0.994). What was tried is
-in [`references/README.md`](references/README.md).
+### Service latency
 
-**Service latency** (ALNS, requests of 10–300 orders, server-side time from the `Server-Timing`
-header): with a 50 ms budget, p99 is 22.7 ms on the laptop, since the solver stops 30 ms early to
-leave time for the response. On one emulated x86 CPU, closer to a small cloud instance, the
-slowest of 300 requests took 50.6 ms. The service is now [deployed](#deployment); a load test against
-it will give the live p95 once the function has a full vCPU.
+**Local** (ALNS, requests of 10–300 orders, server-side time from the `Server-Timing` header): with
+a 50 ms budget, p99 is 22.7 ms on a laptop, since the solver stops 30 ms early to leave time for
+the response. On one emulated x86 CPU the slowest of 300 requests took 50.6 ms.
 
-## Key takeaways
+#### Live latency
 
-Interim, from the 1 s results above:
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="reports/figures/load_test_dark.png">
+  <img alt="Round-trip latency distribution of the live endpoint at 1, 4 and 8 concurrent requests against a 1,000 ms budget" src="reports/figures/load_test.png">
+</picture>
 
-- **Savings captures most of the gain.** It saves 21–24% in tens of milliseconds; ALNS adds
-  another 2–4 points with a full second.
-- **ALNS needs more than 1 s on 60+ orders to match published quality.** At 10 s it is within
-  1 point of the best published method on every shared class. The largest-gap router is 4.5×
-  slower per call than S-shape, so it gets fewer iterations per second.
+ALNS with S-shape routing and a 1,000 ms budget, on 30-minute windows of the generator's
+`baseline` and `peak_day` scenarios (development seeds, 9-294 orders per request, median 65), 160
+measured requests per level. Client is the round trip from the UK; server is the app's
+`Server-Timing`. Times in ms ([full results](../../docs/projects/p1-fulfilment-optimisation/results/load_test.md)):
+
+<!-- T26: update after the 1,769 MB re-run -->
+| Memory | Concurrent | Fallback | Client p50 | Client p95 | Server p50 | Server p95 | Server p99 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 512 MB | 1 | 14% | 1,125 | 1,380 | 997 | 1,045 | 1,071 |
+| 512 MB | 4 | 14% | 1,079 | 1,156 | 997 | 1,047 | 1,055 |
+| 512 MB | 8 | 14% | 1,066 | 1,118 | 995 | 1,043 | 1,059 |
+
+<!-- T26: update after the 1,769 MB re-run -->
+At 512 MB the function gets about 0.3 vCPU, and the budget doesn't hold. There were no throttles or errors, but server-side p95 is 1,043–1,047 ms against 1,000 ms. Fallbacks are almost all large requests: none up to 150 orders, 50% at 151-200 and 96% at 201-300. Up to 150 orders, 20–38% of requests still finish over budget, by at most 24 ms. The function moves to 1,769 MB (one vCPU) when the account's memory cap lifts, and the test will be re-run there.
+
+### Takeaways
+
+- **Savings is the cheap win.** It saves 21–24% in tens of milliseconds; ALNS adds another 2–4
+  points with a full second.
+- **ALNS needs more than 1 s on 60+ orders to match published quality.** At 10 s it is within 1
+  point of the best published method on every shared class. The largest-gap router is 4.5× slower
+  per call than S-shape, so it gets fewer iterations per second.
 - **Optimal routing is worth more than a better batching heuristic.** The heuristics walk 16–20%
   further than optimal on the same tours, more than ALNS gains over savings.
-- **CP-SAT doesn't beat ALNS at any budget up to 10 s** with the fast heuristic routers. Half the budget goes on building its
-  pool, which costs more than recombining tours gains back; it draws level only at 10 s. It proves optimality over its pool on 71% of 20-order
-  instances, but almost never at 40 orders or more.
-- **A hard latency budget takes engineering beyond the solver.** Keeping p99 under budget needed
-  the clock to start when the request arrives, the response built without nested pydantic models,
-  and garbage collection moved between requests.
-- **Limitation:** everything assumes a single-block rectangular layout, the benchmarks' geometry.
-  Real sites are often irregular; graph-defined layouts are planned as phase 3.
+- **Which of ALNS and CP-SAT wins depends on how expensive routing is.** With the fast routers ALNS
+  leads at every budget up to 10 s; with the exact router CP-SAT wins.
+- **A hard latency budget takes engineering beyond the solver**, and it depends on the CPU: it held
+  on a laptop, but not on 0.3 vCPU of Lambda.
 
 ## Design decisions and trade-offs
 
@@ -170,12 +213,11 @@ relaxations are tight, so a MIP would likely prove optimality over large pools f
 a gap. It wasn't benchmarked here, so that stays a hypothesis.
 
 **What was measured is CP-SAT against ALNS.** With fast heuristic routers, ALNS is on the Pareto
-frontier at every budget from 0.1 to 10 s, and CP-SAT only draws level at 10 s
-([Pareto data](../../docs/projects/p1-fulfilment-optimisation/results/pareto.md)). Building the pool costs half the budget, which outweighs what
-recombining tours wins back; CP-SAT proves its pool optimal in 71% of 20-order runs but almost never
-at 40+ orders at 1 s. With the exact router, which is about 15× slower per call, ALNS gets far
-fewer iterations and CP-SAT wins (22.2% vs 21.7% saved, better on 48 of 96 instances; README
-results table above). **Which solver is better depends on how expensive routing is.**
+frontier at every budget from 0.1 to 10 s, and CP-SAT only draws level at 10 s. Building the pool
+costs half the budget, which outweighs what recombining tours wins back; CP-SAT proves its pool
+optimal in 71% of 20-order runs but almost never at 40+ orders at 1 s. With the exact router,
+which is about 15× slower per call, ALNS gets far fewer iterations and CP-SAT wins (22.2% vs 21.7%
+saved, better on 48 of 96 instances).
 
 ### 2. Anytime solving under a hard latency budget
 
@@ -193,19 +235,22 @@ measured: start the clock when the request arrives (parsing 300 orders took ~24 
 response as plain JSON instead of ~1,000 nested pydantic models (~45 ms), and collect garbage
 between requests rather than during them (27-37 ms pauses). Now p99 is 22.7 ms at a 50 ms budget on
 a laptop, and the slowest of 300 requests on the emulated CPU took 50.6 ms
-(`tests/test_api_budget.py`, which asserts p99 ≤ budget + margin). The FCFS guard also earned its
-place: in the held-out run, savings returned tours 4.8× FCFS's length when it ran out of time
-([held-out notes](../../docs/projects/p1-fulfilment-optimisation/results/held_out.md#notes-added-after-the-run)); the service would have returned FCFS.
+(`tests/test_api_budget.py`, which asserts p99 ≤ budget + margin). On 0.3 vCPU of Lambda it
+doesn't yet hold ([live latency](#live-latency)). The FCFS guard also earned its place: in the
+held-out run, savings returned tours 4.8× FCFS's length when it ran out of time
+([held-out notes](../../docs/projects/p1-fulfilment-optimisation/results/held_out.md#notes-added-after-the-run));
+the service would have returned FCFS.
 
 ### 3. Generator validity
 
 **Chosen:** a generator whose ranges come from the KIT suite (13,200 shifts;
-[profile](../../docs/projects/p1-fulfilment-optimisation/results/kit_profile.md)), with order size as a preset: KIT orders are 1-3 lines, the Henn &
-Wäscher benchmark's 4-24. It was checked against both with thresholds fixed beforehand
-([validity](../../docs/projects/p1-fulfilment-optimisation/results/generator_validity.md)): KIT's standard case matches (total variation distance
-0.003 on lines and aisles per order), mean aisles per order across all 132 KIT settings is within
-0.022, and solvers rank identically on generated and published Henn & Wäscher instances (Spearman
-1.00, each within 0.3-1.6 points).
+[profile](../../docs/projects/p1-fulfilment-optimisation/results/kit_profile.md)), with order size
+as a preset: KIT orders are 1-3 lines, the Henn & Wäscher benchmark's 4-24. It was checked against
+both with thresholds fixed beforehand
+([validity](../../docs/projects/p1-fulfilment-optimisation/results/generator_validity.md)): KIT's
+standard case matches (total variation distance 0.003 on lines and aisles per order), mean aisles
+per order across all 132 KIT settings is within 0.022, and solvers rank identically on generated
+and published Henn & Wäscher instances (Spearman 1.00, each within 0.3-1.6 points).
 
 **Alternative: benchmark only on the published instances.** Rejected: 96 fixed instances invite
 over-tuning and can't express peak days or affinity, and KIT alone has none of the large orders
@@ -215,8 +260,9 @@ the batching literature uses.
 (0.207) because their instance files differ from the paper (orders 4-24 not 5-25; class B in two
 aisles not three); a preset corrected to the files passes (0.036), and both are reported. KIT's
 Latin hypercube settings label a wave stochasticity that has no effect on arrivals (r = 0.00), so
-waves are calibrated on its one-factor settings. Generated orders visit 0.027 fewer aisles than
-KIT's under A-closest-to-depot storage.
+waves are calibrated on its one-factor settings. On those Latin hypercube settings, all of which
+store A articles closest to the depot, generated orders visit 0.027 fewer aisles than KIT's on
+average.
 
 ### 4. API contract
 
@@ -235,20 +281,6 @@ reason (`api/app.py`, `tests/test_api.py`):
 caller must fix), or letting requests wait past their budget when all workers are busy (they
 fall back to FCFS at the deadline instead).
 
-### Limitations
-
-- **Layout:** everything assumes a single-block rectangular warehouse, the benchmarks' geometry.
-  Real sites are often irregular; graph-defined layouts are planned as phase 3.
-- **Published comparison is relative:** no per-instance distances exist for the benchmark, and the
-  published tardiness values didn't reproduce ([notes](references/README.md)).
-- **KIT-style picker capacity (20 items) is assumed:** KIT has none.
-- **Exact routing on large windows:** too slow at 1 s per 30-minute window on peak days (held-out
-  run); savings should fall back to FCFS and search should use a fast router there.
-- **Deployed at 512 MB:** new AWS accounts cap Lambda memory there, and CPU scales with memory
-  (about 0.3 vCPU). In a local test at that CPU share, ALNS routes came out 4–5% longer in the same
-  budget and CP-SAT at a 1 s budget overran and fell back to FCFS. It moves to 1,769 MB (one vCPU)
-  when the cap lifts, before the live latency is measured.
-
 ## Reproduce
 
 ```bash
@@ -258,6 +290,11 @@ PYTHONPATH=src python -m fulfilment_optimisation.download henn_waescher  # insta
 PYTHONPATH=src python -m fulfilment_optimisation.benchmark               # grid from config.yaml → outputs/
 pytest
 ```
+
+The benchmark grid (solvers, routers, time limits, seeds) and every solver parameter are in
+`config.yaml`. FCFS, seed and savings are deterministic. ALNS and CP-SAT are deterministic for a
+fixed seed and iteration cap, but under a time limit the number of iterations depends on machine
+speed, so their numbers vary slightly between runs.
 
 The Pareto chart needs a sweep over budgets (about 45 minutes). It runs in three parts so that
 single-threaded ALNS can use one worker per performance core while CP-SAT, which runs 4 threads
@@ -273,12 +310,19 @@ eval $B --solvers cp_sat --time-limits 0.1 0.25 0.5 1 2 5 10 \
 PYTHONPATH=src python -m fulfilment_optimisation.report  # → reports/figures/pareto*.png
 ```
 
-The benchmark grid (solvers, routers, time limits, seeds) and every solver parameter are in
-`config.yaml`. FCFS, seed and savings are deterministic. ALNS and CP-SAT are deterministic for a
-fixed seed and iteration cap, but under a time limit the number of iterations depends on machine
-speed, so their numbers vary slightly between runs.
+Each of the other results comes from one module, run the same way
+(`PYTHONPATH=src python -m fulfilment_optimisation.<module>`); each results file gives its exact
+command.
 
-## Run locally
+| Result | Module | Needs |
+|---|---|---|
+| [Published comparison](../../docs/projects/p1-fulfilment-optimisation/results/published_comparison.md) | `published` | the 1 s grid plus a 10 s / 60 s run (about 20 minutes) |
+| [KIT profile](../../docs/projects/p1-fulfilment-optimisation/results/kit_profile.md) | `kit_profile` | `download kit` (2.0 GB), then `parsers.kit` |
+| [Generator validity](../../docs/projects/p1-fulfilment-optimisation/results/generator_validity.md) | `validity` | the parsed KIT suite, the Henn & Wäscher instances and the 1 s grid |
+| [Held-out run](../../docs/projects/p1-fulfilment-optimisation/results/held_out.md) | `final` | the `final` settings in `config.yaml`; already run once on the held-out seeds |
+| [Load test](../../docs/projects/p1-fulfilment-optimisation/results/load_test.md) | `loadtest` | `aws login` with access to the deployed function |
+
+### Run the service locally
 
 The service runs in a container. Build from the repo root, since the image includes the shared
 `src/portfolio` package:
@@ -315,11 +359,39 @@ uvicorn, so nothing in the app is Lambda-specific.
   and the deploy role can only push this image and update this function.
 - **The URL is private.** It accepts only requests signed by an identity in the AWS account, so
   there's nothing for strangers to call and no cost exposure. Use the `docker run` above to try it;
-  [`infra/README.md`](../../infra/README.md#calling-a-private-url) shows the signed `curl`.
-  A Terraform switch can make it public.
+  [`infra/README.md`](../../infra/README.md#calling-a-private-url) shows how to get the URL from
+  Terraform and send a signed `curl`. A Terraform switch can make it public.
 
-Observed so far: a cold start took 5.2 s and warm requests with the example take 0.10–0.13 s
-round trip from the UK. These are single calls, not a load test.
+<!-- T26: update after the 1,769 MB re-run -->
+The function runs at 512 MB, the account's current cap, and used at most 145 MB in the load test. Single calls before the load test: a cold start took 5.2 s, and warm requests with the example took 0.10–0.13 s round trip from the UK.
+
+## Data and licences
+
+| Source | What | Licence | Use |
+|--------|------|---------|-----|
+| [KIT Manual Warehouse Order Picking benchmarks](https://doi.org/10.35097/mwsv59v8sk9sqaan) (Barlang, Lehmann, Furmans, 2026) | 2.0 GB JSON: layouts, orders per shift, lines per order, arrival randomness, due dates and storage policies; 132 designed parameter sets (32 one-factor-at-a-time + 100 Latin hypercube) × 100 replications | CC BY 4.0 | Calibrate the generator's parameter ranges; stress scenarios |
+| [Henn & Wäscher (2012) batching instances](https://grafo.etsii.urjc.es/optsicom/obsp.html) | 96 instances: 10 aisles × 90 locations, depot bottom-left, 20–80 orders, capacity 45 or 75, due dates | Not stated: fetched by script, not redistributed | External benchmark |
+| [Arbex Valle et al. Foodmart instances](https://homepages.dcc.ufmg.br/~arbex/orderpicking.html) | 8/16-aisle single- and dual-block layouts, 1,560 SKUs, 5–5,000 orders | Not stated: fetched by script, not redistributed | Downloadable, but not used in these results: Henn & Wäscher is the only external benchmark |
+| Own generator | Parameterised warehouse + order stream | MIT | Held-out scenarios, validity checks and the load test |
+
+Raw data lives in `data/raw/` and is never committed. Instances without a stated licence are
+downloaded by script rather than redistributed; see [`data/README.md`](data/README.md).
+
+## Limitations
+
+- **Layout:** everything assumes a single-block rectangular warehouse, the benchmarks' geometry.
+  Real sites are often irregular; graph-defined layouts are planned as phase 3.
+- **Published comparison is relative:** no per-instance distances exist for the benchmark, and the
+  published tardiness values didn't reproduce ([notes](references/README.md)).
+- **KIT-style picker capacity (20 items) is assumed:** KIT has none.
+- **Exact routing on large windows:** too slow at 1 s per 30-minute window on peak days (held-out
+  run). Making savings fall back to FCFS when it can't finish, and using a fast router for search
+  and the exact router only to score the result, are follow-ups to test on development seeds.
+- <!-- T26: update after the 1,769 MB re-run -->
+  **Deployed at 512 MB:** new AWS accounts cap Lambda memory there, and CPU scales with memory
+  (about 0.3 vCPU). The live budget doesn't hold at that size (server-side p95 1,045 ms at a
+  1,000 ms budget). In a local test at that CPU share, ALNS routes also came out 4–5% longer in the
+  same budget, and CP-SAT at a 1 s budget overran and fell back to FCFS.
 
 ## Skills demonstrated
 
@@ -330,4 +402,4 @@ round trip from the UK. These are single calls, not a load test.
 - Performance work: cost caching, incremental insertion costs, response building and GC tuning
 - Benchmarking: a reproducible grid with feasibility checks on every result
 - Service engineering: FastAPI contract with clear 413/422 errors, multi-stage Docker image
-- Deployment: Terraform module for Lambda, keyless GitHub OIDC deploys on merge with a smoke test
+- Deployment: Terraform, OIDC-authenticated deploys to Lambda from CI, and a load test of the live service
