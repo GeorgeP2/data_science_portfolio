@@ -130,7 +130,8 @@ in [`references/README.md`](references/README.md).
 **Service latency** (ALNS, requests of 10–300 orders, server-side time from the `Server-Timing`
 header): with a 50 ms budget, p99 is 22.7 ms on the laptop, since the solver stops 30 ms early to
 leave time for the response. On one emulated x86 CPU, closer to a small cloud instance, the
-slowest of 300 requests took 50.6 ms. Live numbers come with the deploy.
+slowest of 300 requests took 50.6 ms. The service is now [deployed](#deployment); a load test against
+it will give the live p95 once the function has a full vCPU.
 
 ## Key takeaways
 
@@ -243,7 +244,10 @@ fall back to FCFS at the deadline instead).
 - **KIT-style picker capacity (20 items) is assumed:** KIT has none.
 - **Exact routing on large windows:** too slow at 1 s per 30-minute window on peak days (held-out
   run); savings should fall back to FCFS and search should use a fast router there.
-- **Deploy pending:** the live latency figure needs the Lambda deployment.
+- **Deployed at 512 MB:** new AWS accounts cap Lambda memory there, and CPU scales with memory
+  (about 0.3 vCPU). In a local test at that CPU share, ALNS routes came out 4–5% longer in the same
+  budget and CP-SAT at a 1 s budget overran and fell back to FCFS. It moves to 1,769 MB (one vCPU)
+  when the cap lifts, before the live latency is measured.
 
 ## Reproduce
 
@@ -297,6 +301,26 @@ API docs are at <http://localhost:8080/docs>.
 The image is 126 MB compressed (577 MB unpacked, most of it OR-Tools). It contains no benchmark
 data: its ignore file lets in only the code and `config.yaml`.
 
+## Deployment
+
+The same image runs on AWS Lambda (arm64, `eu-west-2`). The
+[Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter) forwards requests to
+uvicorn, so nothing in the app is Lambda-specific.
+
+- **Infrastructure** is Terraform in [`infra/`](../../infra/README.md): a shared module creates the
+  ECR repository, function, function URL, logs and a deploy role, and this project's config calls it.
+- **Deploys** are automatic. A merge to `main` that touches this project (or the shared package)
+  builds the image, pushes it tagged with the commit SHA, updates the function and smoke-tests the
+  URL, all after the CI checks pass. GitHub authenticates to AWS through OIDC, with no stored keys,
+  and the deploy role can only push this image and update this function.
+- **The URL is private.** It accepts only requests signed by an identity in the AWS account, so
+  there's nothing for strangers to call and no cost exposure. Use the `docker run` above to try it;
+  [`infra/README.md`](../../infra/README.md#calling-a-private-url) shows the signed `curl`.
+  A Terraform switch can make it public.
+
+Observed so far: a cold start took 5.2 s and warm requests with the example take 0.10–0.13 s
+round trip from the UK. These are single calls, not a load test.
+
 ## Skills demonstrated
 
 - Optimisation modelling: set partitioning in CP-SAT, and when an exact model loses to a heuristic
@@ -306,3 +330,4 @@ data: its ignore file lets in only the code and `config.yaml`.
 - Performance work: cost caching, incremental insertion costs, response building and GC tuning
 - Benchmarking: a reproducible grid with feasibility checks on every result
 - Service engineering: FastAPI contract with clear 413/422 errors, multi-stage Docker image
+- Deployment: Terraform module for Lambda, keyless GitHub OIDC deploys on merge with a smoke test
